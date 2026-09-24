@@ -104,6 +104,8 @@ class ServerCreate(BaseModel):
     @classmethod
     def validate_pool(cls, value: str) -> str:
         network = ip_network(value, strict=False)
+        if network.version != 4:
+            raise ValueError("IPv6 address pools are not supported by this deployment yet")
         if network.num_addresses > 65536:
             raise ValueError("address pool must contain at most 65,536 addresses")
         return str(network)
@@ -257,7 +259,7 @@ class AgentPeerCreate(BaseModel):
     endpoint: str
     server_public_key: str
     dns: str
-    allowed_ips: str = "0.0.0.0/0, ::/0"
+    allowed_ips: str = "0.0.0.0/0"
     previous_public_key: str = ""
     force_recreate: bool = False
 

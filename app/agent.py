@@ -87,7 +87,7 @@ def create_peer(data: AgentPeerCreate, authorization: str | None = Header(defaul
                     break
             return {"public_key": saved[0], "config": saved_config}
         if saved:
-            wg("set", settings.agent_interface, "peer", saved[0], "remove")
+            wg("set", saved[2], "peer", saved[0], "remove")
             db.execute("DELETE FROM peers WHERE peer_id = ?", (data.peer_id,))
     client = ip_interface(data.client_ip)
     private_key = wg("genkey")
@@ -98,7 +98,7 @@ def create_peer(data: AgentPeerCreate, authorization: str | None = Header(defaul
     wg("set", data.interface_name, "peer", public_key, "allowed-ips", f"{client.ip}/{prefix}")
     if data.previous_public_key and data.previous_public_key != public_key:
         try:
-            wg("set", settings.agent_interface, "peer", data.previous_public_key, "remove")
+            wg("set", data.interface_name, "peer", data.previous_public_key, "remove")
         except HTTPException:
             pass
     config = ("[Interface]\n"

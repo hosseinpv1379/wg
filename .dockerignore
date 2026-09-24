@@ -3,4 +3,6 @@
 __pycache__
 *.py[cod]
 .env
+**/.env
 *.db
+deploy/node/data/

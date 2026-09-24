@@ -1,0 +1,12 @@
+FROM debian:bookworm-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends iproute2 iptables wireguard-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY deploy/node/wireguard-entrypoint.sh /usr/local/bin/wg-node-wireguard-entrypoint
+RUN chmod 0755 /usr/local/bin/wg-node-wireguard-entrypoint
+
+ENTRYPOINT ["/usr/local/bin/wg-node-wireguard-entrypoint"]
