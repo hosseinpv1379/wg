@@ -159,6 +159,32 @@ class NodeCreate(BaseModel):
         return value.rstrip("/")
 
 
+class NodeSetupCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    country: str = Field(min_length=2, max_length=2)
+
+
+class NodeRegistration(BaseModel):
+    interface_name: str = Field(default="wg0", pattern=r"^[a-zA-Z0-9_=+.@-]{1,15}$")
+    endpoint: str = Field(min_length=3, max_length=255)
+    public_key: str = Field(min_length=10, max_length=64)
+    address_pool: str = Field(default="10.44.0.0/24", min_length=3, max_length=100)
+    dns: str = Field(default="1.1.1.1", max_length=100)
+
+    @field_validator("address_pool")
+    @classmethod
+    def validate_pool(cls, value: str) -> str:
+        network = ip_network(value, strict=False)
+        if network.version != 4 or network.num_addresses > 65536:
+            raise ValueError("address_pool must be IPv4 and contain at most 65,536 addresses")
+        return str(network)
+
+
+class NodeCommandResult(BaseModel):
+    result: dict = Field(default_factory=dict)
+    error: str = Field(default="", max_length=2000)
+
+
 class NodeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str

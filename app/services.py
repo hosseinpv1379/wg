@@ -5,7 +5,7 @@ import socket
 import time
 from datetime import timedelta
 from ipaddress import ip_address, ip_network
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import httpx
 from fastapi import HTTPException
@@ -14,7 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.crypto import decrypt, encrypt
-from app.models import (AuditLog, IdempotencyRecord, Job, Node, Order, Payment, Peer,
+from app.models import (AuditLog, IdempotencyRecord, Job, Node, NodeCommand, Order, Payment, Peer,
                         Plan, Server, Subscription, User, WebhookDelivery, WebhookEndpoint,
                         as_utc, new_id, utc_now)
 from app.schemas import NodeCreate, OrderCreate, PaymentConfirm, PlanCreate, ServerCreate, UserCreate
@@ -310,13 +310,65 @@ def allocate_peer(db: Session, tenant_id: str, subscription: Subscription, count
                                                             Peer.status != "revoked")).all())
         for address in network.hosts():
             value = str(address)
+            if server.agent_url.startswith("node-poll://") and address == network.network_address + 1:
+                continue
             if value not in used:
                 return Peer(tenant_id=tenant_id, subscription_id=subscription.id,
                             server_id=server.id, client_ip=value)
     raise HTTPException(503, detail={"code": "SERVER_UNAVAILABLE", "message": "No healthy server has an available address"})
 
 
-def agent_request(server: Server, method: str, path: str, payload: dict | None = None):
+def node_command(db: Session, node_id: str, operation: str, payload: dict | None = None,
+                 timeout: float = 40):
+    node = db.get(Node, node_id)
+    if not node or not node.active:
+        raise RuntimeError("Node is missing or disabled")
+    if operation != "ping" and (not node.healthy or not node.last_seen_at or
+            (utc_now() - as_utc(node.last_seen_at)).total_seconds() > 60):
+        raise RuntimeError(f"Node {node.name} is not connected to the panel")
+    command = NodeCommand(node_id=node_id, operation=operation,
+                          payload=json.dumps(payload or {}), status="queued")
+    db.add(command)
+    db.commit()
+    command_id = command.id
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        db.expire_all()
+        command = db.get(NodeCommand, command_id)
+        if command and command.status == "done":
+            return json.loads(command.result or "{}")
+        if command and command.status in {"failed", "expired"}:
+            raise RuntimeError(command.error or f"Node command {operation} failed")
+        db.rollback()
+        time.sleep(0.25)
+    command = db.get(NodeCommand, command_id)
+    if command and command.status in {"queued", "running"}:
+        command.status = "expired"
+        command.error = "Node command timed out"
+        db.commit()
+    else:
+        db.rollback()
+    raise RuntimeError(f"Node {node.name} did not respond to {operation} in time")
+
+
+def agent_request(db: Session, server: Server, method: str, path: str, payload: dict | None = None):
+    if server.node_id and server.agent_url.startswith("node-poll://"):
+        parsed = urlparse(path)
+        if parsed.path == "/internal/health":
+            operation = "ping"
+            command_payload = {"interface_name": parse_qs(parsed.query).get("interface_name", ["wg0"])[0]}
+        elif parsed.path == "/internal/peers" and method.upper() == "POST":
+            operation, command_payload = "peer.create", payload or {}
+        elif parsed.path.startswith("/internal/peers/") and method.upper() == "DELETE":
+            operation = "peer.delete"
+            command_payload = {"peer_id": parsed.path.rsplit("/", 1)[-1],
+                               "interface_name": parse_qs(parsed.query).get("interface_name", [server.interface_name])[0]}
+        elif parsed.path == "/internal/traffic":
+            operation = "traffic"
+            command_payload = {"interface_name": parse_qs(parsed.query).get("interface_name", [server.interface_name])[0]}
+        else:
+            raise RuntimeError(f"Unsupported Node operation: {method} {path}")
+        return node_command(db, server.node_id, operation, command_payload)
     token = decrypt(server.agent_secret_ciphertext)
     try:
         response = httpx.request(method, server.agent_url.rstrip("/") + path, json=payload,
@@ -338,12 +390,12 @@ def process_job(db: Session, job: Job) -> None:
         if not server or not sub:
             raise RuntimeError("Peer server or subscription is missing")
         if sub.status in {"suspended", "expired", "exhausted", "failed"}:
-            agent_request(server, "DELETE", f"/internal/peers/{peer.id}?interface_name={server.interface_name}")
+            agent_request(db, server, "DELETE", f"/internal/peers/{peer.id}?interface_name={server.interface_name}")
             peer.status = "revoked"
             job.status = "done"
             db.commit()
             return
-        result = agent_request(server, "POST", "/internal/peers", {
+        result = agent_request(db, server, "POST", "/internal/peers", {
             "peer_id": peer.id,
             "interface_name": server.interface_name,
             "client_ip": f"{peer.client_ip}/{32 if ip_address(peer.client_ip).version == 4 else 128}",
@@ -372,7 +424,7 @@ def process_job(db: Session, job: Job) -> None:
         if peer:
             server = db.get(Server, peer.server_id)
             if server:
-                agent_request(server, "DELETE", f"/internal/peers/{peer.id}?interface_name={server.interface_name}")
+                agent_request(db, server, "DELETE", f"/internal/peers/{peer.id}?interface_name={server.interface_name}")
             peer.status = "revoked"
         job.status = "done"
         db.commit()
@@ -389,7 +441,7 @@ def poll_usage(db: Session) -> None:
             if not active_peer_count:
                 continue
         try:
-            result = agent_request(server, "GET", f"/internal/traffic?interface_name={server.interface_name}")
+            result = agent_request(db, server, "GET", f"/internal/traffic?interface_name={server.interface_name}")
             server.healthy = True
             server.last_seen_at = utc_now()
             if server.node_id:

@@ -1,5 +1,7 @@
+import asyncio
 import hashlib
 import io
+import json
 import re
 import secrets
 import socket
@@ -20,11 +22,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api import require_scope
 from app.crypto import decrypt, encrypt
 from app.db import get_db
-from app.models import (ApiCredential, AuditLog, Job, Node, Order, Peer, Plan, Server, Subscription,
+from app.models import (ApiCredential, AuditLog, Job, Node, NodeCommand, NodeCredential, Order, Peer, Plan, Server, Subscription,
                         User, WebhookDelivery, WebhookEndpoint, as_utc, utc_now)
 from app.schemas import (ApiResponse, OrderCreate, OrderOut, PaymentConfirm, PeerCreate, PeerOut, PlanCreate,
                          PlanOut, PlanUpdate, ServerCreate, ServerOut, SubscriptionOut, UserCreate, UserOut, UserUpdate,
-                         ActiveUpdate, ApiKeyCreate, NodeCreate, NodeOut, WebhookCreate, WebhookOut)
+                         ActiveUpdate, ApiKeyCreate, NodeCreate, NodeOut, NodeSetupCreate, NodeRegistration,
+                         NodeCommandResult, WebhookCreate, WebhookOut)
 from app.services import (ALL_SCOPES, allocate_peer, audit, confirm_payment, create_order,
                           create_node, create_plan, create_renewal_order, create_server, create_user, emit)
 
@@ -38,6 +41,19 @@ def success(data, request: Request):
 
 def tenant_scope(value: tuple[str, str]) -> str:
     return value[0]
+
+
+def node_auth(node_id: str, node_key: str | None, db: Session) -> Node:
+    if not node_key:
+        raise HTTPException(401, detail={"code": "NODE_AUTH_REQUIRED", "message": "X-Node-Key is required"})
+    credential = db.get(NodeCredential, node_id)
+    digest = hashlib.sha256(node_key.encode()).hexdigest()
+    if not credential or not credential.active or not secrets.compare_digest(credential.key_hash, digest):
+        raise HTTPException(401, detail={"code": "INVALID_NODE_KEY", "message": "Node key is invalid"})
+    node = db.scalar(select(Node).where(Node.id == node_id, Node.tenant_id == credential.tenant_id))
+    if not node or not node.active:
+        raise HTTPException(403, detail={"code": "NODE_DISABLED", "message": "Node is disabled"})
+    return node
 
 
 def validate_webhook_url(value: str) -> None:
@@ -98,49 +114,6 @@ def node_installer():
     path = Path(__file__).resolve().parent.parent / "deploy" / "node" / "install.sh"
     return FileResponse(path, media_type="text/x-shellscript; charset=utf-8",
                         headers={"Cache-Control": "no-store"})
-
-
-@app.post("/api/v1/node-installer-keys", response_model=ApiResponse[dict], status_code=201)
-def create_node_installer_key(request: Request, auth=Depends(require_scope("servers:write")),
-                              db: Session = Depends(get_db)):
-    tenant_id, actor = auth
-    secret = f"wg_node_{secrets.token_urlsafe(36)}"
-    credential = ApiCredential(tenant_id=tenant_id, name="node-installer",
-                               key_hash=hashlib.sha256(secret.encode()).hexdigest(),
-                               scopes="servers:read,servers:write", active=True)
-    db.add(credential)
-    db.flush()
-    audit(db, tenant_id, actor, "node_installer_key.created", credential.id)
-    db.commit()
-    return success({"id": credential.id, "api_key": secret}, request)
-
-
-@app.get("/api/v1/node-installer-keys", response_model=ApiResponse[list[dict]])
-def list_node_installer_keys(request: Request, auth=Depends(require_scope("servers:write")),
-                             db: Session = Depends(get_db)):
-    tenant_id = tenant_scope(auth)
-    rows = db.scalars(select(ApiCredential).where(ApiCredential.tenant_id == tenant_id,
-                                                    ApiCredential.name == "node-installer",
-                                                    ApiCredential.active.is_(True)).order_by(
-                                                        ApiCredential.created_at.desc())).all()
-    return success([{"id": row.id, "created_at": row.created_at} for row in rows], request)
-
-
-@app.delete("/api/v1/node-installer-keys/{key_id}", response_model=ApiResponse[dict])
-def revoke_node_installer_key(key_id: str, request: Request,
-                              auth=Depends(require_scope("servers:write")),
-                              db: Session = Depends(get_db)):
-    tenant_id, actor = auth
-    credential = db.scalar(select(ApiCredential).where(ApiCredential.id == key_id,
-                                                         ApiCredential.tenant_id == tenant_id,
-                                                         ApiCredential.name == "node-installer",
-                                                         ApiCredential.active.is_(True)))
-    if not credential:
-        raise HTTPException(404, detail={"code": "INSTALL_KEY_NOT_FOUND", "message": "Installer key not found"})
-    credential.active = False
-    audit(db, tenant_id, actor, "node_installer_key.revoked", credential.id)
-    db.commit()
-    return success({"id": credential.id, "active": False}, request)
 
 
 @app.get("/api/v1/plans", response_model=ApiResponse[list[PlanOut]])
@@ -260,6 +233,103 @@ def post_node(data: NodeCreate, request: Request, auth=Depends(require_scope("se
     return success(node, request)
 
 
+@app.post("/api/v1/nodes/setup", response_model=ApiResponse[dict], status_code=201)
+def setup_node(data: NodeSetupCreate, request: Request, auth=Depends(require_scope("servers:write")),
+               db: Session = Depends(get_db)):
+    tenant_id, actor = auth
+    node = Node(tenant_id=tenant_id, name=data.name.strip(), country=data.country.upper(),
+                agent_url="node-poll://pending", agent_secret_ciphertext="")
+    node_key = f"wg_node_{secrets.token_urlsafe(36)}"
+    db.add(node)
+    db.flush()
+    db.add(NodeCredential(node_id=node.id, tenant_id=tenant_id,
+                          key_hash=hashlib.sha256(node_key.encode()).hexdigest()))
+    audit(db, tenant_id, actor, "node.setup_created", node.id)
+    db.commit()
+    return success({"node_id": node.id, "node_api_key": node_key, "name": node.name,
+                    "country": node.country}, request)
+
+
+def require_node_header(node_id: str, x_node_key: str | None, db: Session) -> Node:
+    return node_auth(node_id, x_node_key, db)
+
+
+@app.post("/api/v1/node-agent/{node_id}/register", response_model=ApiResponse[dict])
+def register_node_agent(node_id: str, data: NodeRegistration, request: Request,
+                        x_node_key: str | None = Header(default=None, alias="X-Node-Key"),
+                        db: Session = Depends(get_db)):
+    node = require_node_header(node_id, x_node_key, db)
+    server = db.scalar(select(Server).where(Server.node_id == node.id,
+                                              Server.interface_name == data.interface_name))
+    if not server:
+        server = Server(tenant_id=node.tenant_id, node_id=node.id,
+                        interface_name=data.interface_name, name=node.name,
+                        country=node.country, endpoint=data.endpoint, public_key=data.public_key,
+                        agent_url=f"node-poll://{node.id}", agent_secret_ciphertext="",
+                        address_pool=data.address_pool, dns=data.dns,
+                        healthy=True, last_seen_at=utc_now())
+        db.add(server)
+    else:
+        server.endpoint = data.endpoint
+        server.public_key = data.public_key
+        server.address_pool = data.address_pool
+        server.dns = data.dns
+        server.healthy = True
+        server.last_seen_at = utc_now()
+    node.agent_url = f"node-poll://{node.id}"
+    node.healthy = True
+    node.last_seen_at = utc_now()
+    db.commit()
+    return success({"node_id": node.id, "interface_name": data.interface_name,
+                    "server_id": server.id, "registered": True}, request)
+
+
+@app.get("/api/v1/node-agent/{node_id}/commands", response_model=ApiResponse[dict | None])
+async def poll_node_commands(node_id: str, request: Request, wait_seconds: int = 20,
+                             x_node_key: str | None = Header(default=None, alias="X-Node-Key"),
+                             db: Session = Depends(get_db)):
+    node = require_node_header(node_id, x_node_key, db)
+    node.healthy = True
+    node.last_seen_at = utc_now()
+    db.commit()
+    deadline = asyncio.get_running_loop().time() + min(max(wait_seconds, 0), 25)
+    while True:
+        command = db.scalar(select(NodeCommand).where(NodeCommand.node_id == node.id,
+                            NodeCommand.status == "queued").order_by(NodeCommand.created_at)
+                            .with_for_update(skip_locked=True).limit(1))
+        if command:
+            command.status = "running"
+            db.commit()
+            return success({"id": command.id, "operation": command.operation,
+                            "payload": json.loads(command.payload)}, request)
+        db.rollback()
+        if asyncio.get_running_loop().time() >= deadline:
+            return success(None, request)
+        await asyncio.sleep(0.5)
+
+
+@app.post("/api/v1/node-agent/{node_id}/commands/{command_id}/result",
+          response_model=ApiResponse[dict])
+def finish_node_command(node_id: str, command_id: str, data: NodeCommandResult, request: Request,
+                        x_node_key: str | None = Header(default=None, alias="X-Node-Key"),
+                        db: Session = Depends(get_db)):
+    node = require_node_header(node_id, x_node_key, db)
+    command = db.scalar(select(NodeCommand).where(NodeCommand.id == command_id,
+                                                   NodeCommand.node_id == node.id))
+    if not command:
+        raise HTTPException(404, detail={"code": "NODE_COMMAND_NOT_FOUND", "message": "Command not found"})
+    if command.status not in {"running", "queued"}:
+        raise HTTPException(409, detail={"code": "NODE_COMMAND_FINISHED", "message": "Command is already finished"})
+    command.status = "failed" if data.error else "done"
+    command.result = json.dumps(data.result)
+    command.error = data.error
+    command.completed_at = utc_now()
+    node.last_seen_at = command.completed_at
+    node.healthy = not data.error
+    db.commit()
+    return success({"accepted": True}, request)
+
+
 @app.patch("/api/v1/nodes/{node_id}", response_model=ApiResponse[NodeOut])
 def patch_node(node_id: str, data: ActiveUpdate, request: Request,
                auth=Depends(require_scope("servers:write")), db: Session = Depends(get_db)):
@@ -306,10 +376,17 @@ def test_node_connection(node_id: str, request: Request,
     node = db.scalar(select(Node).where(Node.id == node_id, Node.tenant_id == tenant_id))
     if not node:
         raise HTTPException(404, detail={"code": "NODE_NOT_FOUND", "message": "Node not found"})
-    from app.services import test_agent_connection
+    from app.services import node_command, test_agent_connection
     interface = db.scalar(select(Server.interface_name).where(Server.node_id == node.id,
                                                                Server.tenant_id == tenant_id)) or "wg0"
-    ok = test_agent_connection(node.agent_url, decrypt(node.agent_secret_ciphertext), interface)
+    if node.agent_url.startswith("node-poll://"):
+        try:
+            node_command(db, node.id, "ping", {"interface_name": interface}, timeout=12)
+            ok = True
+        except RuntimeError:
+            ok = False
+    else:
+        ok = test_agent_connection(node.agent_url, decrypt(node.agent_secret_ciphertext), interface)
     node.healthy = ok
     node.last_seen_at = utc_now() if ok else node.last_seen_at
     audit(db, tenant_id, auth[1], "node.connection_tested", node.id)

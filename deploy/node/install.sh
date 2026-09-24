@@ -1,130 +1,145 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-readonly INSTALL_DIR=/opt/wg-node
-readonly REPOSITORY=${WG_NODE_REPOSITORY:-https://github.com/hosseinpv1379/wg.git}
+readonly REPOSITORY=${WG_NODE_REPOSITORY:-hosseinpv1379/wg}
+readonly NODE_DIR=/etc/wg-node
+readonly BINARY=/usr/local/bin/wg-node
 TMP_DIR=$(mktemp -d)
-CURL_CONFIG="$TMP_DIR/curl.conf"
-SERVER_API_KEY=""
-
-cleanup() {
-  unset SERVER_API_KEY
-  rm -rf "$TMP_DIR"
-}
+NODE_KEY=""
+cleanup() { unset NODE_KEY; rm -rf "$TMP_DIR"; }
 trap cleanup EXIT
-
 fail() { printf 'ERROR: %s\n' "$1" >&2; exit 1; }
 info() { printf '\n==> %s\n' "$1"; }
 
-[[ $EUID -eq 0 ]] || fail "Run this installer as root: sudo bash install.sh"
-[[ -r /dev/tty ]] || fail "An interactive terminal is required to enter the setup values safely."
-[[ -r /etc/os-release ]] || fail "This installer requires Ubuntu or Debian."
+[[ $EUID -eq 0 ]] || fail 'Run as root: sudo bash install.sh'
+[[ -r /dev/tty && -r /etc/os-release ]] || fail 'An interactive Ubuntu/Debian terminal is required.'
 . /etc/os-release
-[[ ${ID:-} == ubuntu || ${ID:-} == debian ]] || fail "Supported operating systems: Ubuntu or Debian."
-[[ ! -e $INSTALL_DIR ]] || fail "$INSTALL_DIR already exists. Back it up or remove it before reinstalling."
-if ! command -v curl >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1 || ! command -v git >/dev/null 2>&1; then
-  apt-get update
-  apt-get install -y ca-certificates curl python3 git
-fi
+[[ ${ID:-} == ubuntu || ${ID:-} == debian ]] || fail 'Supported systems: Ubuntu and Debian.'
 
-read -r -p "Panel URL (for example https://api.example.com): " PANEL_URL </dev/tty
+read -r -p 'Panel URL (https://...): ' PANEL_URL </dev/tty
 PANEL_URL=${PANEL_URL%/}
-[[ $PANEL_URL == https://* ]] || fail "Panel URL must start with https://"
-read -r -s -p "server_api_key from the panel: " SERVER_API_KEY </dev/tty
+read -r -p 'NODE_ID from the panel: ' NODE_ID </dev/tty
+read -r -s -p 'SERVER_API_KEY for this Node: ' NODE_KEY </dev/tty
 printf '\n'
-[[ $SERVER_API_KEY =~ ^[A-Za-z0-9_-]{32,}$ ]] || fail "The server_api_key looks incomplete or invalid."
-read -r -p "Node name (for example Germany-1): " NODE_NAME </dev/tty
-read -r -p "Country code (DE, TR, US, RU, CN): " NODE_COUNTRY </dev/tty
-NODE_COUNTRY=${NODE_COUNTRY^^}
-read -r -p "Node domain with DNS pointing here (for example agent-de.example.com): " NODE_DOMAIN </dev/tty
-read -r -p "Public IPv4 or DNS for WireGuard clients: " NODE_PUBLIC_HOST </dev/tty
-read -r -p "WireGuard UDP port [51820]: " WG_SERVER_PORT </dev/tty
+read -r -p 'Public IP or DNS for WireGuard clients: ' WG_PUBLIC_HOST </dev/tty
+read -r -p 'WireGuard UDP port [51820]: ' WG_SERVER_PORT </dev/tty
 WG_SERVER_PORT=${WG_SERVER_PORT:-51820}
+read -r -p 'Client address pool [10.44.0.0/24]: ' WG_CLIENT_POOL </dev/tty
+WG_CLIENT_POOL=${WG_CLIENT_POOL:-10.44.0.0/24}
 
-[[ -n $NODE_NAME && ${#NODE_NAME} -le 120 ]] || fail "Node name is required (maximum 120 characters)."
-[[ $NODE_COUNTRY =~ ^[A-Z]{2}$ ]] || fail "Country must be a two-letter code such as DE."
-[[ $NODE_DOMAIN =~ ^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]] || fail "Node domain format is invalid."
-[[ $NODE_PUBLIC_HOST =~ ^[A-Za-z0-9.-]+$ ]] || fail "Public IP or DNS format is invalid."
-[[ $WG_SERVER_PORT =~ ^[0-9]+$ ]] && (( WG_SERVER_PORT >= 1 && WG_SERVER_PORT <= 65535 )) || fail "UDP port must be between 1 and 65535."
+[[ $PANEL_URL == https://* ]] || fail 'Panel URL must use HTTPS.'
+[[ $NODE_ID =~ ^[A-Za-z0-9_-]{8,40}$ ]] || fail 'NODE_ID format is invalid.'
+[[ $NODE_KEY =~ ^wg_node_[A-Za-z0-9_-]{32,}$ ]] || fail 'SERVER_API_KEY is invalid.'
+[[ $WG_PUBLIC_HOST =~ ^[A-Za-z0-9.-]+$ ]] || fail 'Public host format is invalid.'
+[[ $WG_SERVER_PORT =~ ^[0-9]+$ ]] || fail 'UDP port must be numeric.'
+WG_SERVER_PORT=$((10#$WG_SERVER_PORT))
+(( WG_SERVER_PORT >= 1 && WG_SERVER_PORT <= 65535 )) || fail 'UDP port must be 1-65535.'
+[[ $WG_CLIENT_POOL =~ ^[0-9./]+$ ]] || fail 'Client pool must be an IPv4 CIDR.'
+IFS=./ read -r IP1 IP2 IP3 IP4 PREFIX <<< "$WG_CLIENT_POOL"
+[[ $IP1 =~ ^[0-9]+$ && $IP2 =~ ^[0-9]+$ && $IP3 =~ ^[0-9]+$ && $IP4 =~ ^[0-9]+$ && $PREFIX =~ ^[0-9]+$ ]] \
+  || fail 'Client pool must be a valid IPv4 CIDR.'
+IP1=$((10#$IP1)); IP2=$((10#$IP2)); IP3=$((10#$IP3)); IP4=$((10#$IP4)); PREFIX=$((10#$PREFIX))
+(( IP1 <= 255 && IP2 <= 255 && IP3 <= 255 && IP4 <= 255 && PREFIX >= 16 && PREFIX <= 30 )) \
+  || fail 'Client pool must be between /16 and /30.'
+(( IP1 == 10 || (IP1 == 172 && IP2 >= 16 && IP2 <= 31) || (IP1 == 192 && IP2 == 168) )) \
+  || fail 'Client pool must be inside an RFC1918 private IPv4 range.'
+IP_NUMBER=$(( (IP1 << 24) + (IP2 << 16) + (IP3 << 8) + IP4 ))
+MASK=$(( (0xffffffff << (32 - PREFIX)) & 0xffffffff ))
+SERVER_NUMBER=$(( (IP_NUMBER & MASK) + 1 ))
+WG_SERVER_ADDRESS="$(( (SERVER_NUMBER >> 24) & 255 )).$(( (SERVER_NUMBER >> 16) & 255 )).$(( (SERVER_NUMBER >> 8) & 255 )).$(( SERVER_NUMBER & 255 ))/$PREFIX"
+WG_HOST_ROUTE=${WG_SERVER_ADDRESS%/*}
+[[ ! -e $NODE_DIR/node.env ]] || fail "$NODE_DIR/node.env already exists; this Node appears installed."
+[[ ! -e /etc/wireguard/wg0.conf ]] || fail '/etc/wireguard/wg0.conf already exists; refusing to overwrite it.'
 
-cat > "$CURL_CONFIG" <<EOF
-silent
-show-error
-header = "X-API-Key: $SERVER_API_KEY"
-header = "Content-Type: application/json"
+info 'Checking the central panel and Node key'
+curl -fsS "$PANEL_URL/health" >/dev/null || fail 'Panel health check failed.'
+curl -fsS -H "X-Node-Key: $NODE_KEY" "$PANEL_URL/api/v1/node-agent/$NODE_ID/commands?wait_seconds=0" >/dev/null \
+  || fail 'Node ID and key were rejected by the panel.'
+
+info 'Installing WireGuard tools and the Go Node service'
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl wireguard-tools iptables
+install -d -m 0700 "$NODE_DIR" /var/lib/wg-node /etc/wireguard
+ARCH=$(dpkg --print-architecture)
+case "$ARCH" in
+  amd64) ASSET=wg-node-linux-amd64 ;;
+  arm64) ASSET=wg-node-linux-arm64 ;;
+  *) fail "Unsupported CPU architecture: $ARCH" ;;
+esac
+LATEST="https://github.com/$REPOSITORY/releases/latest/download"
+curl -fsSL "$LATEST/$ASSET" -o "$TMP_DIR/wg-node"
+curl -fsSL "$LATEST/SHA256SUMS" -o "$TMP_DIR/SHA256SUMS"
+(cd "$TMP_DIR" && grep "  $ASSET$" SHA256SUMS | sha256sum -c -)
+install -o root -g root -m 0755 "$TMP_DIR/wg-node" "$BINARY"
+
+info 'Configuring WireGuard interface and routing'
+SERVER_PRIVATE_KEY=$(wg genkey)
+WAN_INTERFACE=$(ip -4 route get 1.1.1.1 | awk '{for (i=1;i<=NF;i++) if ($i=="dev") {print $(i+1); exit}}')
+[[ -n $WAN_INTERFACE ]] || fail 'Could not determine the public network interface.'
+cat > /etc/sysctl.d/99-wg-node.conf <<'EOF'
+net.ipv4.ip_forward=1
 EOF
-chmod 600 "$CURL_CONFIG"
-export CURL_CONFIG
+sysctl --system >/dev/null
+cat > /etc/wireguard/wg0.conf <<EOF
+[Interface]
+Address = $WG_SERVER_ADDRESS
+ListenPort = $WG_SERVER_PORT
+PrivateKey = $SERVER_PRIVATE_KEY
+SaveConfig = false
+PostUp = iptables -C FORWARD -i %i -j ACCEPT 2>/dev/null || iptables -A FORWARD -i %i -j ACCEPT; iptables -C FORWARD -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || iptables -A FORWARD -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT; iptables -t nat -C POSTROUTING -s $WG_CLIENT_POOL -o $WAN_INTERFACE -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s $WG_CLIENT_POOL -o $WAN_INTERFACE -j MASQUERADE
+PostDown = iptables -D FORWARD -i %i -j ACCEPT 2>/dev/null || true; iptables -D FORWARD -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || true; iptables -t nat -D POSTROUTING -s $WG_CLIENT_POOL -o $WAN_INTERFACE -j MASQUERADE 2>/dev/null || true
+EOF
+chmod 600 /etc/wireguard/wg0.conf
 
-info "Checking panel and setup key"
-curl -fsS "$PANEL_URL/health" >/dev/null || fail "Cannot reach panel health endpoint."
-curl -fsS --config "$CURL_CONFIG" "$PANEL_URL/api/v1/nodes" >/dev/null || fail "Setup key is invalid or lacks Node permissions."
+cat > "$NODE_DIR/node.env" <<EOF
+WG_PANEL_URL=$PANEL_URL
+WG_NODE_ID=$NODE_ID
+WG_SERVER_API_KEY=$NODE_KEY
+WG_PUBLIC_HOST=$WG_PUBLIC_HOST
+WG_SERVER_PORT=$WG_SERVER_PORT
+WG_INTERFACE=wg0
+WG_CLIENT_POOL=$WG_CLIENT_POOL
+WG_DNS=1.1.1.1
+WG_STATE_PATH=/var/lib/wg-node/peers.json.enc
+EOF
+chmod 600 "$NODE_DIR/node.env"
+unset SERVER_PRIVATE_KEY NODE_KEY
 
-info "Installing Docker"
-if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
-  apt-get update
-  apt-get install -y ca-certificates curl
-  curl -fsSL https://get.docker.com -o "$TMP_DIR/get-docker.sh"
-  sh "$TMP_DIR/get-docker.sh"
-  systemctl enable --now docker
+cat > /etc/systemd/system/wg-node.service <<'EOF'
+[Unit]
+Description=WireGuard Panel Node Agent
+After=network-online.target wg-quick@wg0.service
+Wants=network-online.target
+Requires=wg-quick@wg0.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/wg-node/node.env
+ExecStart=/usr/local/bin/wg-node
+Restart=always
+RestartSec=3
+User=root
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/wg-node
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+info 'Starting WireGuard and connecting to the panel'
+systemctl daemon-reload
+systemctl enable --now "wg-quick@wg0"
+systemctl enable --now wg-node
+if command -v ufw >/dev/null 2>&1 && ufw status | grep -q '^Status: active'; then
+  ufw allow "$WG_SERVER_PORT/udp" >/dev/null
+  ufw route allow in on wg0 out on "$WAN_INTERFACE" >/dev/null
 fi
-
-info "Downloading WireGuard Node"
-git clone --depth 1 --branch main "$REPOSITORY" "$INSTALL_DIR"
-cd "$INSTALL_DIR"
-printf '%s\n' "$NODE_DOMAIN" "$NODE_PUBLIC_HOST" "$WG_SERVER_PORT" | python3 deploy/node/create-env.py
-
-info "Starting WireGuard and secure Agent"
-docker compose --env-file deploy/node/.env -f deploy/node/compose.yml up -d --build
-PUBLIC_KEY=$(docker compose --env-file deploy/node/.env -f deploy/node/compose.yml \
-  exec -T wireguard cat /var/lib/wg-node/server-public.key)
-AGENT_TOKEN=$(sed -n 's/^WG_AGENT_TOKEN=//p' deploy/node/.env)
-[[ -n $PUBLIC_KEY && -n $AGENT_TOKEN ]] || fail "Node did not produce its WireGuard key or Agent token."
-
-info "Registering Node in the panel"
-export PANEL_URL SERVER_API_KEY NODE_NAME NODE_COUNTRY NODE_DOMAIN NODE_PUBLIC_HOST WG_SERVER_PORT AGENT_TOKEN PUBLIC_KEY
-python3 - <<'PY'
-import json
-import os
-import subprocess
-import sys
-
-def post(path, body):
-    result = subprocess.run(
-        ["curl", "-fsS", "--config", os.environ["CURL_CONFIG"], "-X", "POST",
-         "-d", json.dumps(body), os.environ["PANEL_URL"] + path],
-        check=True, capture_output=True, text=True,
-    )
-    return json.loads(result.stdout)["data"]
-
-try:
-    node = post("/api/v1/nodes", {
-        "name": os.environ["NODE_NAME"],
-        "country": os.environ["NODE_COUNTRY"],
-        "agent_url": "https://" + os.environ["NODE_DOMAIN"],
-        "agent_secret": os.environ["AGENT_TOKEN"],
-    })
-    post("/api/v1/servers", {
-        "node_id": node["id"],
-        "interface_name": "wg0",
-        "name": os.environ["NODE_NAME"],
-        "country": os.environ["NODE_COUNTRY"],
-        "endpoint": os.environ["NODE_PUBLIC_HOST"] + ":" + os.environ["WG_SERVER_PORT"],
-        "public_key": os.environ["PUBLIC_KEY"],
-        "address_pool": "10.44.0.0/24",
-        "dns": "1.1.1.1",
-    })
-except (subprocess.CalledProcessError, KeyError, ValueError) as exc:
-    print("Node services are running, but registration failed. Check the setup key and panel logs, then retry registration.", file=sys.stderr)
-    if isinstance(exc, subprocess.CalledProcessError):
-        print(exc.stderr.strip(), file=sys.stderr)
-    sys.exit(1)
-PY
-
-unset SERVER_API_KEY AGENT_TOKEN
-rm -f "$CURL_CONFIG"
-info "Installation complete"
-printf 'Node: %s (%s)\n' "$NODE_NAME" "$NODE_COUNTRY"
-printf 'Agent URL: https://%s\n' "$NODE_DOMAIN"
-printf 'WireGuard endpoint: %s:%s/udp\n' "$NODE_PUBLIC_HOST" "$WG_SERVER_PORT"
-printf 'Open the panel and run Test Connection for this Node. Allow TCP 80/443 and UDP %s in the VPS firewall.\n' "$WG_SERVER_PORT"
+sleep 2
+systemctl --no-pager --full status wg-node || true
+printf '\nNode installation finished.\n'
+printf 'WireGuard endpoint: %s:%s/udp\n' "$WG_PUBLIC_HOST" "$WG_SERVER_PORT"
+printf 'Allow inbound UDP %s in both the VPS firewall and provider firewall.\n' "$WG_SERVER_PORT"
+printf 'Node management uses outbound HTTPS; no Node domain or inbound TCP Agent ports are required.\n'

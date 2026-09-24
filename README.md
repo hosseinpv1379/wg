@@ -1,6 +1,6 @@
 # راهنمای نصب و راه‌اندازی سرویس WireGuard
 
-این راهنما از سرور خالی تا اتصال پنج Node به پنل را قدم‌به‌قدم توضیح می‌دهد. ساختار نصب شامل یک سرور مرکزی برای API، پایگاه داده، Worker و پنل مدیریتی است و یک سرور Node برای هر موقعیت که WireGuard و Agent روی آن اجرا می‌شوند.
+این راهنما سرور مرکزی و Nodeهای WireGuard را راه‌اندازی می‌کند. پنل/API با Python اجرا می‌شود و هر Node یک daemon مستقل Go دارد؛ Node ارتباط را از سمت خودش با HTTPS به پنل برقرار می‌کند.
 
 > این نسخه هسته مدیریت Node، Interface، کاربر، طرح، سفارش، اشتراک و Peer را دارد. پنل وب فعلاً برای Node و Interface است؛ ساخت طرح و گردش خرید از API انجام می‌شود. اتصال واقعی درگاه پرداخت هنوز باید برای درگاه انتخابی پیاده‌سازی و پیش از فروش عمومی آزمایش شود. بخش «آمادگی برای فروش» را پیش از دریافت پول بخوانید.
 
@@ -13,22 +13,20 @@
 api.example.com: Caddy -> API + پنل (/panel) + مستند (/docs)
                          | PostgreSQL
                          | Worker صف کارها
-                         +--- HTTPS ---+--- HTTPS ---+
-                             Node DE       Node TR ...
-                             WireGuard     WireGuard
-                             Agent         Agent
-                             UDP 51820     UDP 51820
+                         ^ outbound HTTPS polling
+                    Go Node DE / Node TR ...
+                    WireGuard UDP 51820
 ~~~
 
-هر Node یک VPS مستقل و یک دامنه Agent دارد. دامنه API مرکزی و دامنه Agentها باید به IP سرور مربوط اشاره کنند؛ برای مثال api.example.com برای سرور مرکزی و agent-de.example.com برای Node آلمان. در معماری فعلی، API مرکزی از راه HTTPS به Agent هر Node وصل می‌شود؛ ارتباط Agent هنوز مدل polling خروجی V2bX نیست.
+هر Node یک VPS مستقل است. فقط دامنه پنل مرکزی نیاز به DNS و HTTPS دارد؛ Node دامنه Agent نمی‌خواهد و هیچ TCP مدیریتی روی آن باز نمی‌کند. از Node فقط اتصال خروجی HTTPS به پنل و ورودی UDP WireGuard لازم است. کلید Node مجزا است و در دیتابیس فقط hash آن نگه‌داری می‌شود.
 
 ## پیش‌نیازها
 
-- یک VPS مرکزی Ubuntu و برای هر موقعیت یک VPS Node؛ دسترسی root یا sudo.
-- دامنه و امکان ساخت DNS A record برای سرور مرکزی و هر Node.
-- TCP پورت‌های 80 و 443 در firewall ارائه‌دهنده؛ روی Nodeها UDP پورت WireGuard، پیش‌فرض 51820.
-- Docker Engine و Docker Compose روی هر سرور. راهنمای رسمی: [نصب Docker روی Ubuntu](https://docs.docker.com/engine/install/ubuntu/).
-- Caddy روی سرور مرکزی برای TLS خودکار. Caddy روی Nodeها در Compose اجرا می‌شود.
+- یک VPS مرکزی و برای هر موقعیت یک VPS Ubuntu/Debian با دسترسی root یا sudo.
+- دامنه مرکزی با HTTPS؛ برای نمونه `api.example.com`.
+- TCP پورت‌های 80 و 443 روی مرکزی و UDP پورت WireGuard روی Nodeها.
+- Docker Engine و Docker Compose روی سرور مرکزی. راهنمای رسمی: [نصب Docker روی Ubuntu](https://docs.docker.com/engine/install/ubuntu/).
+- Caddy روی سرور مرکزی برای TLS خودکار.
 
 Firewall ارائه‌دهنده VPS را هم تنظیم کنید؛ بازکردن پورت فقط در UFW ممکن است کافی نباشد. Docker ممکن است ترافیک پورت‌های منتشرشده را مستقل از بعضی قوانین UFW عبور دهد. قبل از تغییر قوانین firewall، تنظیمات فعلی را بررسی کنید.
 
@@ -156,48 +154,56 @@ https://api.example.com/panel را باز کنید و کلید panel-admin را 
 
 ## بخش دوم: نصب Node WireGuard
 
-این بخش را روی هر VPS موقعیت جداگانه اجرا کنید. برای هر Node یک دامنه Agent لازم است که به IP همان VPS اشاره کند. چون Nodeها ماشین‌های مستقل‌اند، می‌توانند pool یکسانی مثل 10.44.0.0/24 داشته باشند.
+این بخش را روی هر VPS موقعیت جداگانه اجرا کنید. Nodeها می‌توانند pool پیش‌فرض یکسان داشته باشند، چون هر کدام VPS و شبکه WireGuard مستقل دارند.
 
 ### ۸. DNS و firewall نود
 
-برای Node آلمان مثلاً رکورد A با نام agent-de.example.com و IP عمومی همان Node بسازید. برای ترکیه، آمریکا، روسیه و چین هم دامنه مستقل مثل agent-tr.example.com بسازید. روی هر Node TCP پورت‌های 80/443 و UDP پورت WireGuard (پیش‌فرض 51820) را در firewall ارائه‌دهنده باز کنید.
+برای Node دامنه یا TCP ورودی لازم نیست. UDP پورت WireGuard (پیش‌فرض 51820) را در firewall سیستم و ارائه‌دهنده باز کنید و اجازه اتصال خروجی TCP 443 به دامنه پنل را بدهید.
 
 ### ۹. ساخت server_api_key در پنل
 
-در پنل، وارد بخش Nodeها شوید و روی «کلیدهای نصب» بزنید. «ساخت server_api_key» را انتخاب و کلید را در password manager ذخیره کنید؛ کلید خام فقط همان یک بار نمایش داده می‌شود. این کلید فقط scopeهای `servers:read` و `servers:write` دارد، پس به APIهای کاربر/پرداخت دسترسی ندارد؛ اما قادر به مدیریت Node و Interfaceهای Tenant خودش است. می‌توانید هر زمان از همان پنجره لغوش کنید. برای Nodeهای بعدی همین کلید را دوباره به‌کار ببرید.
+در پنل وارد بخش Nodeها شوید و «نصب Node» را بزنید. نام و کد کشور را وارد کنید. پنل `NODE_ID` و `SERVER_API_KEY` اختصاصی می‌سازد؛ کلید فقط یک‌بار دیده می‌شود و برای هر Node باید کلید جدا بسازید.
 
 ### ۱۰. نصب Node با یک فرمان
 
-روی VPS مقصد این فرمان را اجرا کنید؛ دامنه را با دامنه‌ی پنل خودتان عوض کنید. فرمان با root یا کاربر دارای sudo کار می‌کند:
+روی VPS مقصد فرمانی را که پنل نمایش داده اجرا کنید. نمونه زیر را با دامنه پنل خودتان جایگزین کنید:
 
 ~~~sh
 curl -fsSL https://api.example.com/install/node.sh -o /tmp/wg-node-install.sh && if [ "$(id -u)" -eq 0 ]; then bash /tmp/wg-node-install.sh; else sudo bash /tmp/wg-node-install.sh; fi
 ~~~
 
-نصب‌کننده چند مقدار را از شما می‌پرسد: URL پنل، `server_api_key` (ورودی مخفی)، نام Node، کد کشور، دامنه Agent همان VPS، IP عمومی و UDP port (Enter یعنی 51820). سپس Docker و Git را در صورت نیاز نصب می‌کند، شاخه `main` مخزن را می‌گیرد، WireGuard و Agent و TLS را بالا می‌آورد و Node و Interface `wg0` را در پنل ثبت می‌کند. کلید API موقتاً در فایل با permission محدود استفاده و در پایان پاک می‌شود؛ روی Node در `.env` ذخیره نمی‌شود. برای استفاده از نصاب، مخزن پروژه باید از Node قابل دریافت باشد.
+نصاب URL پنل، شناسه و کلید Node (ورودی مخفی)، IP عمومی یا DNS، پورت UDP و pool آدرس را می‌پرسد. سپس WireGuard tools و باینری Go مناسب CPU را از GitHub Release دانلود و SHA-256 را بررسی می‌کند، کلید سرور را می‌سازد، سرویس‌های `wg-quick@wg0` و `wg-node` را فعال و Interface را خودکار در پنل ثبت می‌کند. کلید در `/etc/wg-node/node.env` با permission 600 می‌ماند. مدیریت Node از طریق HTTPS خروجی انجام می‌شود.
 
 برای نمونه‌ی پنج موقعیت، این مراحل را روی هر VPS تکرار کنید:
 
-| موقعیت | کشور | دامنه Agent | IP/دامنه Endpoint |
-| --- | --- | --- | --- |
-| آلمان | DE | agent-de.example.com | IP عمومی آلمان |
-| ترکیه | TR | agent-tr.example.com | IP عمومی ترکیه |
-| آمریکا | US | agent-us.example.com | IP عمومی آمریکا |
-| روسیه | RU | agent-ru.example.com | IP عمومی روسیه |
-| چین | CN | agent-cn.example.com | IP عمومی چین |
+| موقعیت | کشور | IP/دامنه Endpoint |
+| --- | --- | --- |
+| آلمان | DE | IP عمومی آلمان |
+| ترکیه | TR | IP عمومی ترکیه |
+| آمریکا | US | IP عمومی آمریکا |
+| روسیه | RU | IP عمومی روسیه |
+| چین | CN | IP عمومی چین |
 
-بعد از اتمام، در پنل وضعیت Node را ببینید و **Test Connection** را اجرا کنید. اگر نصب‌کننده گفت DNS/HTTPS در دسترس نیست، رکورد دامنه را به IP همان Node وصل و TCP پورت‌های 80/443 را باز کنید. برای Tunnel نیز UDP پورت انتخابی (پیش‌فرض 51820) باید در firewall ارائه‌دهنده باز باشد.
+بعد از اتمام، وضعیت Node را در پنل بررسی و **Test Connection** را اجرا کنید. برای تونل، UDP پورت انتخابی باید در firewall ارائه‌دهنده باز باشد.
 
-نصب‌کننده فقط روی Ubuntu/Debian و VPS اختصاصی آزمایش شده است. برای کار شبکه به NET_ADMIN و SYS_MODULE نیاز دارد. فایل تنظیمات و دیتای Node در /opt/wg-node/deploy/node/.env و /opt/wg-node/deploy/node/data باقی می‌مانند؛ از آن‌ها backup رمزگذاری‌شده بگیرید.
+نصاب برای Ubuntu/Debian طراحی شده است. فایل محرمانه در `/etc/wg-node/node.env` و state رمزگذاری‌شده peerها در `/var/lib/wg-node/peers.json.enc` است. از این فایل‌ها backup امن بگیرید.
 
 ### به‌روزرسانی Node
 
-نصاب مخزن Git را در `/opt/wg-node` clone می‌کند؛ برای به‌روزرسانی ابتدا تغییرات را به شاخه `main` بفرستید، سپس روی Node اجرا کنید:
+برای انتشار daemon، tag مانند `wg-node-v1.0.0` بسازید و push کنید تا GitHub Actions باینری و checksum بسازد. سپس روی هر Node:
 
 ~~~sh
-cd /opt/wg-node
-git pull
-docker compose --env-file deploy/node/.env -f deploy/node/compose.yml up -d --build
+case "$(dpkg --print-architecture)" in
+  amd64) ASSET=wg-node-linux-amd64 ;;
+  arm64) ASSET=wg-node-linux-arm64 ;;
+  *) echo "Unsupported architecture"; exit 1 ;;
+esac
+BASE=https://github.com/hosseinpv1379/wg/releases/latest/download
+curl -fsSL "$BASE/$ASSET" -o /tmp/wg-node
+curl -fsSL "$BASE/SHA256SUMS" -o /tmp/SHA256SUMS
+(cd /tmp && grep "  $ASSET$" SHA256SUMS | sha256sum -c -)
+install -m 0755 /tmp/wg-node /usr/local/bin/wg-node
+systemctl restart wg-node
 ~~~
 
 ## بخش سوم: طرح و سفارش از API
@@ -245,17 +251,18 @@ curl -fsS https://api.example.com/health
 روی Node:
 
 ~~~sh
-docker compose --env-file deploy/node/.env -f deploy/node/compose.yml ps
-docker compose --env-file deploy/node/.env -f deploy/node/compose.yml logs --tail=100 wireguard agent caddy
+systemctl status wg-quick@wg0 wg-node
+journalctl -u wg-node -n 100 --no-pager
+wg show wg0
 ~~~
 
 | مشکل | موارد بررسی |
 | --- | --- |
-| HTTPS باز نمی‌شود | DNS به IP درست، TCP 80/443، caddy validate و systemctl status caddy مرکزی؛ لاگ Caddy روی Node. |
+| پنل باز نمی‌شود | DNS به IP درست، TCP 80/443، caddy validate و systemctl status caddy مرکزی. |
 | Health API خراب است | docker compose ps و docker compose logs --tail=100 api db؛ سپس curl http://127.0.0.1:8000/health. |
-| Test Connection ناموفق است | DNS دامنه Agent به همان Node، TCP 443، سرویس‌های سالم، Agent URL و token همان Node. |
+| Test Connection ناموفق است | روی Node وضعیت wg-node، لاگ journalctl و دسترسی خروجی TCP 443 به پنل را بررسی کنید. |
 | Node وصل است ولی VPN کار نمی‌کند | UDP پورت در firewall ارائه‌دهنده، IP/پورت endpoint، کلید عمومی، pool و wg0. |
-| Peer بعد restart برنگشته | حذف‌نشدن deploy/node/data و عوض‌نشدن کلیدها؛ بررسی لاگ و بازیابی backup. |
+| Peer بعد restart برنگشته | سرویس wg-quick@wg0 و wg-node، فایل state در /var/lib/wg-node و لاگ daemon را بررسی کنید. |
 | API key گم شده | مقدار خام قابل بازیابی نیست؛ کلید تازه با scope لازم صادر و کلید قبلی را غیرفعال کنید. |
 
 Worker را در این نسخه فقط با یک replica اجرا کنید و آن را scale نکنید. قبل از تغییر شبکه یا به‌روزرسانی، backup معتبر داشته باشید.
@@ -265,9 +272,9 @@ Worker را در این نسخه فقط با یک replica اجرا کنید و �
 - Endpoint confirm-payment خودش درگاه را بررسی نمی‌کند. پیاده‌سازی درگاه باید امضا، مبلغ، ارز، شناسه سفارش و تکراری‌نبودن callback را بررسی کند و در صورت امکان استعلام server-to-server انجام دهد.
 - تا پیش از ساخت این adapter، کلید دارای payments:confirm را به کاربر یا client عمومی ندهید. کلید storefront نمونه بالا برای Backend امن است، نه موبایل/مرورگر.
 - UI فعلی پنل فقط Nodeها و Interfaceها را مدیریت می‌کند؛ UI کامل کاربران، اشتراک‌ها، سفارش‌ها و پرداخت‌ها موجود نیست.
-- Agent را روی پورت 8787 عمومی نکنید؛ HTTPS Caddy تنها ورودی مدیریتی باشد. برای هر Node token جدا بسازید.
-- فایل‌های .env، کلید Fernet، رمز PostgreSQL و داده deploy/node/data را در Git یا log قرار ندهید. backup رمزگذاری‌شده بگیرید. گم‌شدن WG_CONFIG_ENCRYPTION_KEY بازیابی secretهای رمز‌شده DB را ناممکن می‌کند.
-- server_api_key نصب فقط scopeهای servers:read و servers:write دارد؛ کلید خام فقط یک بار دیده می‌شود، hash آن در DB می‌ماند و کلید قابل لغو است. این scope امکان مدیریت Node و Interface را می‌دهد؛ بعد از پایان نصب نودها آن را از بخش «کلیدهای نصب» لغو کنید.
+- برای هر Node کلید اختصاصی بسازید و VPS را فقط از firewallهای مورد اعتماد مدیریت کنید؛ پنل روی Node هیچ پورت مدیریتی inbound ندارد.
+- فایل‌های `.env`، کلید Fernet، رمز PostgreSQL، `/etc/wg-node/node.env` و state زیر `/var/lib/wg-node` را در Git یا log قرار ندهید. گم‌شدن `WG_CONFIG_ENCRYPTION_KEY` بازیابی secretهای DB را ناممکن می‌کند.
+- کلید نصب خام فقط یک بار نمایش داده می‌شود؛ hash آن در DB می‌ماند. غیرفعال‌کردن Node دسترسی همان کلید را فوراً قطع می‌کند.
 - پیاده‌سازی فعلی IPv4 محور است و IPv6 کامل، traffic shaping و چند Worker هم‌زمان را آماده نمی‌کند. پیش از فروش عمومی، hardening، تست بازیابی، تست بار و بررسی امنیتی انجام دهید.
 
 ## Endpointهای پرکاربرد
@@ -283,7 +290,7 @@ Worker را در این نسخه فقط با یک replica اجرا کنید و �
 | اشتراک و مصرف | GET /api/v1/subscriptions/{id}, GET /api/v1/subscriptions/{id}/usage |
 | Peer و کانفیگ | GET /api/v1/subscriptions/{id}/peers, GET /api/v1/peers/{id}/config, GET /api/v1/peers/{id}/qr |
 | Nodeها | GET/POST/PATCH /api/v1/nodes, POST /api/v1/nodes/{id}/test-connection |
-| کلید نصب Node | POST/GET /api/v1/node-installer-keys, DELETE /api/v1/node-installer-keys/{id} |
+| ثبت Node و ارتباط daemon | POST /api/v1/nodes/setup؛ Node از /api/v1/node-agent/{id}/register و /commands استفاده می‌کند |
 | Webhook | GET/POST /api/v1/webhooks |
 
 برای سفارش از Idempotency-Key یکتا استفاده کنید؛ جزئیات تمام Scopeها و payloadها در /docs نمایش داده می‌شود.

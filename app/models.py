@@ -78,6 +78,29 @@ class Node(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
+class NodeCredential(Base):
+    __tablename__ = "node_credentials"
+    node_id: Mapped[str] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    key_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class NodeCommand(Base):
+    __tablename__ = "node_commands"
+    __table_args__ = (Index("ix_node_commands_poll", "node_id", "status", "created_at"),)
+    id: Mapped[str] = mapped_column(String(40), primary_key=True, default=lambda: new_id("cmd"))
+    node_id: Mapped[str] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"), index=True)
+    operation: Mapped[str] = mapped_column(String(40))
+    payload: Mapped[str] = mapped_column(Text, default="{}")
+    status: Mapped[str] = mapped_column(String(20), default="queued")
+    result: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class Server(Base):
     __tablename__ = "servers"
     __table_args__ = (Index("uq_servers_node_interface", "node_id", "interface_name", unique=True),)
