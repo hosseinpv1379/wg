@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WireGuard | مدیریت Nodeها</title>
+  <style>
+    :root { color-scheme: light; --ink:#172b3a; --muted:#657887; --line:#dbe4e8; --canvas:#f4f7f7; --white:#fff; --green:#16755a; --green-soft:#e6f3ed; --amber:#a45c13; --amber-soft:#fff2dc; --red:#a43e3e; }
+    * { box-sizing:border-box } body { margin:0; color:var(--ink); background:var(--canvas); font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif }
+    button,input,select { font:inherit } button { cursor:pointer } .shell { display:grid; grid-template-columns:230px minmax(0,1fr); min-height:100vh }
+    aside { padding:22px 16px; background:#132d38; color:#e8f1ef } .brand { display:flex; gap:11px; align-items:center; padding:5px 8px 24px; border-bottom:1px solid #35515a; font-weight:700; font-size:16px }
+    .mark { display:grid; place-items:center; width:34px; height:34px; border-radius:8px; background:#288166; color:white; font-weight:800 }
+    .nav-label { margin:24px 8px 8px; color:#9bb1b3; font-size:11px } .nav-item { display:flex; gap:10px; align-items:center; width:100%; padding:9px 10px; border:0; border-radius:5px; color:#e4eeec; background:transparent; text-align:right }
+    .nav-item.active,.nav-item:hover { background:#24434c } .nav-icon { width:20px; color:#91cdb4; text-align:center }
+    main { min-width:0; padding:24px clamp(16px,3vw,38px) 42px } header { display:flex; justify-content:space-between; align-items:center; gap:16px; border-bottom:1px solid var(--line); padding:0 0 18px; margin-bottom:24px }
+    h1 { font-size:22px; line-height:1.3; margin:0 0 3px } .sub { color:var(--muted); font-size:13px } .header-actions { display:flex; align-items:center; gap:8px }
+    .icon-btn { width:36px;height:36px;border:1px solid var(--line);border-radius:5px;background:white;color:var(--ink);font-size:17px } .key-btn { border:1px solid var(--line); border-radius:5px; background:white; padding:7px 12px; color:var(--ink) }
+    .stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-bottom:22px } .stat { background:white; border:1px solid var(--line); padding:14px 16px; border-radius:5px }
+    .stat-label { color:var(--muted); font-size:12px } .stat-value { display:block; margin-top:5px; font-size:24px; font-weight:700; direction:ltr; text-align:right }
+    .section-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:24px 0 10px } h2 { font-size:16px; margin:0 } .section-desc { color:var(--muted); font-size:12px }
+    .table-wrap { overflow:auto; background:white; border:1px solid var(--line); border-radius:5px } table { width:100%; border-collapse:collapse; min-width:660px } th,td { text-align:right; padding:11px 14px; border-bottom:1px solid #edf1f2; white-space:nowrap } th { color:var(--muted); background:#fafcfc; font-size:12px; font-weight:600 } tr:last-child td { border-bottom:0 }
+    .badge { display:inline-flex; align-items:center; gap:6px; border-radius:4px; padding:2px 8px; font-size:12px; color:var(--amber); background:var(--amber-soft) } .badge.online { color:var(--green); background:var(--green-soft) }.dot { width:6px;height:6px;border-radius:50%;background:currentColor }
+    .text-btn { border:0; background:transparent; color:var(--green); padding:4px 5px } .primary { border:1px solid var(--green); border-radius:5px; padding:7px 12px; color:white; background:var(--green) } .primary:hover { background:#105d47 }
+    .empty { padding:25px; text-align:center; color:var(--muted) } .hidden { display:none!important }
+    .overlay { position:fixed; inset:0; z-index:4; display:grid; place-items:center; padding:16px; background:#10232c88 } .dialog { width:min(520px,100%); max-height:90vh; overflow:auto; background:white; border-radius:7px; box-shadow:0 16px 48px #10232c33 }
+    .dialog-head { display:flex; justify-content:space-between; align-items:center; padding:15px 18px; border-bottom:1px solid var(--line) } .dialog-body { padding:18px } .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px }
+    label { display:block; margin:0 0 5px; font-size:12px; color:#425866 } .field { margin-bottom:12px } input,select { width:100%; min-height:38px; border:1px solid #cbd7dc; border-radius:4px; padding:7px 9px; background:white; color:var(--ink); direction:ltr; text-align:left } input:focus,select:focus { outline:2px solid #b9ded0; border-color:var(--green) }
+    .dialog-foot { display:flex; justify-content:flex-start; gap:8px; padding-top:10px }.secondary { border:1px solid var(--line); border-radius:5px; background:white; padding:7px 12px; color:var(--ink) }
+    .toast { position:fixed; bottom:20px; left:20px; padding:10px 14px; border-radius:5px; color:white; background:#173d37; box-shadow:0 4px 16px #122a2633; z-index:8; max-width:min(440px,calc(100vw - 40px)) }.toast.error { background:#8f3737 }
+    #key-modal .dialog { width:min(430px,100%) } .hint { color:var(--muted); font-size:12px; margin:0 0 14px }
+    @media(max-width:760px) { .shell { grid-template-columns:1fr } aside { padding:10px 12px } .brand { padding:2px 5px 9px; border:0 } .nav-label { display:none } nav { display:flex; gap:4px; overflow-x:auto; margin-top:8px } .nav-item { width:auto; flex:none; padding:7px 9px } main { padding:17px 13px 30px } header { align-items:flex-start } h1 { font-size:19px } .stats { gap:7px } .stat { padding:10px } .stat-value { font-size:20px } .grid { grid-template-columns:1fr } }
+    @media(max-width:420px) { .stats { grid-template-columns:1fr 1fr } .stats .stat:last-child { grid-column:1/-1 } .header-actions { gap:5px } .key-btn { font-size:12px; padding:6px 8px } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <div class="brand"><span class="mark">WG</span><span>WireGuard Manager</span></div>
+      <div class="nav-label">زیرساخت</div>
+      <nav aria-label="ناوبری اصلی">
+        <button class="nav-item active" data-view="overview"><span class="nav-icon">▦</span>نمای کلی</button>
+        <button class="nav-item" data-view="nodes"><span class="nav-icon">⌘</span>Nodeها</button>
+        <button class="nav-item" data-view="interfaces"><span class="nav-icon">◫</span>Interfaceها</button>
+      </nav>
+    </aside>
+    <main>
+      <header><div><h1 id="page-title">نمای کلی</h1><div class="sub" id="page-sub">وضعیت زیرساخت WireGuard</div></div><div class="header-actions"><button class="key-btn" id="api-key-button">تنظیم کلید API</button><button class="icon-btn" id="refresh" title="به‌روزرسانی" aria-label="به‌روزرسانی">↻</button></div></header>
+      <section class="stats" aria-label="آمار زیرساخت"><div class="stat"><span class="stat-label">Nodeها</span><b class="stat-value" id="node-count">-</b></div><div class="stat"><span class="stat-label">آنلاین</span><b class="stat-value" id="online-count">-</b></div><div class="stat"><span class="stat-label">Interfaceها</span><b class="stat-value" id="interface-count">-</b></div></section>
+      <section id="nodes-section"><div class="section-head"><div><h2>Nodeها</h2><div class="section-desc">ماشین‌های WireGuard متصل به سرویس مرکزی؛ غیرفعال‌سازی، تخصیص جدید را متوقف می‌کند.</div></div><button class="primary" id="add-node">＋ ثبت Node</button></div><div class="table-wrap"><table><thead><tr><th>نام</th><th>موقعیت</th><th>وضعیت</th><th>Interfaceها</th><th>آخرین اتصال</th><th>عملیات</th></tr></thead><tbody id="nodes-body"></tbody></table><div id="nodes-empty" class="empty hidden">هنوز Nodeای ثبت نشده است.</div></div></section>
+      <section id="interfaces-section"><div class="section-head"><div><h2>Interfaceها</h2><div class="section-desc">هر Interface یک pool آدرس و endpoint مستقل دارد؛ اتصال‌های موجود قطع نمی‌شوند.</div></div><button class="primary" id="add-interface">＋ ثبت Interface</button></div><div class="table-wrap"><table><thead><tr><th>نام</th><th>Node</th><th>کشور</th><th>Endpoint</th><th>Pool</th><th>وضعیت</th></tr></thead><tbody id="interfaces-body"></tbody></table><div id="interfaces-empty" class="empty hidden">Interfaceای ثبت نشده است.</div></div></section>
+    </main>
+  </div>
+  <div id="dialog-root"></div><div id="toast-root" aria-live="polite"></div>
+  <script>
+    const $ = (q) => document.querySelector(q);
+    let nodes = [], interfaces = [];
+    const titles = {overview:['نمای کلی','وضعیت زیرساخت WireGuard'],nodes:['Nodeها','مدیریت ماشین‌ها و اتصال Agent'],interfaces:['Interfaceها','تنظیمات شبکه‌ی هر Interface']};
+    function toast(message, error=false) { const el=document.createElement('div'); el.className='toast'+(error?' error':''); el.textContent=message; $('#toast-root').replaceChildren(el); setTimeout(()=>el.remove(),4000); }
+    function key() { return sessionStorage.getItem('wg_api_key') || ''; }
+    async function api(path, options={}) {
+      const response=await fetch('/api/v1'+path,{...options,headers:{'Content-Type':'application/json','X-API-Key':key(),...(options.headers||{})}});
+      const body=await response.json().catch(()=>({}));
+      if(!response.ok || body.success===false) throw new Error(body.error?.message || body.detail?.message || `خطای ${response.status}`);
+      return body.data;
+    }
+    function esc(value='') { return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function openDialog(title, fields, submitLabel, onSubmit) {
+      const root=$('#dialog-root'); root.innerHTML=`<div class="overlay" role="presentation"><form class="dialog" role="dialog" aria-modal="true"><div class="dialog-head"><b>${esc(title)}</b><button type="button" class="icon-btn close" aria-label="بستن">×</button></div><div class="dialog-body">${fields}</div><div class="dialog-foot"><button class="primary" type="submit">${esc(submitLabel)}</button><button type="button" class="secondary close">انصراف</button></div></form></div>`;
+      root.querySelectorAll('.close').forEach(b=>b.onclick=()=>root.replaceChildren()); root.querySelector('.overlay').onclick=e=>{if(e.target===e.currentTarget)root.replaceChildren()};
+      root.querySelector('form').onsubmit=async e=>{e.preventDefault(); const values=Object.fromEntries(new FormData(e.currentTarget)); try{await onSubmit(values);root.replaceChildren();await load();}catch(err){toast(err.message,true)}};
+      root.querySelector('input')?.focus();
+    }
+    function render() {
+      $('#node-count').textContent=nodes.length; $('#online-count').textContent=nodes.filter(n=>n.healthy&&n.active).length; $('#interface-count').textContent=interfaces.length;
+      $('#nodes-body').innerHTML=nodes.map(n=>{const count=interfaces.filter(i=>i.node_id===n.id).length;return `<tr><td><b>${esc(n.name)}</b><div class="section-desc" dir="ltr">${esc(n.id)}</div></td><td>${esc(n.country)}</td><td><span class="badge ${n.healthy&&n.active?'online':''}"><span class="dot"></span>${!n.active?'Disabled':n.healthy?'Online':'Offline'}</span></td><td>${count}</td><td>${n.last_seen_at?new Date(n.last_seen_at).toLocaleString('fa-IR'):'-'}</td><td><button class="text-btn test-node" data-id="${esc(n.id)}">تست اتصال</button><button class="text-btn toggle-node" data-id="${esc(n.id)}" data-active="${n.active}">${n.active?'غیرفعال‌سازی':'فعال‌سازی'}</button></td></tr>`}).join('');
+      $('#nodes-empty').classList.toggle('hidden',nodes.length>0);
+      $('#interfaces-body').innerHTML=interfaces.map(i=>{const n=nodes.find(x=>x.id===i.node_id);return `<tr><td><b>${esc(i.name)}</b><div class="section-desc" dir="ltr">${esc(i.interface_name)}</div></td><td>${esc(n?.name||'Local')}</td><td>${esc(i.country)}</td><td dir="ltr">${esc(i.endpoint)}</td><td dir="ltr">${esc(i.address_pool)}</td><td><span class="badge ${i.healthy&&i.active?'online':''}"><span class="dot"></span>${!i.active?'Disabled':i.healthy?'Online':'Offline'}</span> <button class="text-btn toggle-interface" data-id="${esc(i.id)}" data-active="${i.active}">${i.active?'غیرفعال‌سازی':'فعال‌سازی'}</button></td></tr>`}).join('');
+      $('#interfaces-empty').classList.toggle('hidden',interfaces.length>0);
+      document.querySelectorAll('.test-node').forEach(b=>b.onclick=async()=>{b.disabled=true;try{const result=await api(`/nodes/${encodeURIComponent(b.dataset.id)}/test-connection`,{method:'POST'});toast(result.healthy?'اتصال Node موفق بود':'Agent پاسخ‌گو نیست',!result.healthy);await load()}catch(e){toast(e.message,true)}finally{b.disabled=false}});
+      document.querySelectorAll('.toggle-node').forEach(b=>b.onclick=async()=>{try{await api(`/nodes/${encodeURIComponent(b.dataset.id)}`,{method:'PATCH',body:JSON.stringify({active:b.dataset.active!=='true'})});toast('وضعیت Node تغییر کرد');await load()}catch(e){toast(e.message,true)}});
+      document.querySelectorAll('.toggle-interface').forEach(b=>b.onclick=async()=>{try{await api(`/servers/${encodeURIComponent(b.dataset.id)}`,{method:'PATCH',body:JSON.stringify({active:b.dataset.active!=='true'})});toast('وضعیت Interface تغییر کرد');await load()}catch(e){toast(e.message,true)}});
+    }
+    async function load() {
+      if(!key()){showKeyDialog();return}
+      try { [nodes,interfaces]=await Promise.all([api('/nodes'),api('/servers?include_disabled=true')]); render(); }
+      catch(e){ if(/API key|Unauthorized|INVALID_API_KEY|Auth/i.test(e.message)){showKeyDialog();return} toast(e.message,true); }
+    }
+    function showKeyDialog() {
+      openDialog('اتصال به API',`<p class="hint">کلید API با دسترسی مدیریت Nodeها و Interfaceها وارد شود. کلید فقط در session همین مرورگر نگه‌داری می‌شود.</p><div class="field"><label for="api-key">X-API-Key</label><input id="api-key" name="api_key" type="password" autocomplete="off" required></div>`,'اتصال',async v=>{sessionStorage.setItem('wg_api_key',v.api_key.trim()); await load();});
+    }
+    function showNodeDialog(){openDialog('ثبت Node جدید',`<div class="grid"><div class="field"><label>نام Node</label><input name="name" required maxlength="120"></div><div class="field"><label>کد کشور</label><input name="country" required minlength="2" maxlength="2" placeholder="DE"></div></div><div class="field"><label>نشانی HTTPS مربوط به Agent</label><input name="agent_url" type="url" required placeholder="https://node.example.com"></div><div class="field"><label>توکن Agent</label><input name="agent_secret" type="password" required minlength="32" autocomplete="new-password"></div><p class="hint">توکن رمز‌شده در دیتابیس می‌ماند و فقط هنگام ساخت Node ارسال می‌شود.</p>`,'ثبت Node',async v=>{await api('/nodes',{method:'POST',body:JSON.stringify({...v,name:v.name.trim(),country:v.country.trim().toUpperCase()})});toast('Node ثبت شد')})}
+    function showInterfaceDialog(){if(!nodes.length){toast('ابتدا یک Node ثبت کنید',true);return} const options=nodes.map(n=>`<option value="${esc(n.id)}">${esc(n.name)} · ${esc(n.country)}</option>`).join('');openDialog('ثبت Interface',`<div class="grid"><div class="field"><label>Node</label><select name="node_id">${options}</select></div><div class="field"><label>نام نمایشی</label><input name="name" required maxlength="120" placeholder="Germany 1"></div></div><div class="grid"><div class="field"><label>نام سیستم Interface</label><input name="interface_name" required value="wg0" maxlength="15" pattern="[a-zA-Z0-9_=+.@-]{1,15}"></div><div class="field"><label>کشور</label><input name="country" required value="${esc(nodes[0].country)}" minlength="2" maxlength="2"></div></div><div class="grid"><div class="field"><label>Endpoint عمومی</label><input name="endpoint" required placeholder="vpn.example.com:51820"></div><div class="field"><label>کلید عمومی سرور</label><input name="public_key" required minlength="10" maxlength="64"></div></div><div class="grid"><div class="field"><label>Pool آدرس</label><input name="address_pool" required placeholder="10.50.0.0/24"></div><div class="field"><label>DNS</label><input name="dns" value="1.1.1.1"></div></div><p class="hint">Agent همان Node را به‌کار می‌گیرد. Interface باید از قبل روی میزبان ایجاد و فعال شده باشد.</p>`,'ثبت Interface',async v=>{await api('/servers',{method:'POST',body:JSON.stringify({...v,agent_url:'',agent_secret:'',country:v.country.trim().toUpperCase()})});toast('Interface ثبت شد')})}
+    document.querySelectorAll('.nav-item').forEach(b=>b.onclick=()=>{document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x===b));const view=b.dataset.view;$('#page-title').textContent=titles[view][0];$('#page-sub').textContent=titles[view][1];$('#nodes-section').classList.toggle('hidden',view==='interfaces');$('#interfaces-section').classList.toggle('hidden',view==='nodes')});
+    $('#add-node').onclick=showNodeDialog; $('#add-interface').onclick=showInterfaceDialog; $('#refresh').onclick=load; $('#api-key-button').onclick=showKeyDialog; load();
+  </script>
+</body>
+</html>
