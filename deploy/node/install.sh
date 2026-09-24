@@ -67,10 +67,10 @@ case "$ARCH" in
   *) fail "Unsupported CPU architecture: $ARCH" ;;
 esac
 LATEST="https://github.com/$REPOSITORY/releases/latest/download"
-curl -fsSL "$LATEST/$ASSET" -o "$TMP_DIR/wg-node"
+curl -fsSL "$LATEST/$ASSET" -o "$TMP_DIR/$ASSET"
 curl -fsSL "$LATEST/SHA256SUMS" -o "$TMP_DIR/SHA256SUMS"
 (cd "$TMP_DIR" && grep "  $ASSET$" SHA256SUMS | sha256sum -c -)
-install -o root -g root -m 0755 "$TMP_DIR/wg-node" "$BINARY"
+install -o root -g root -m 0755 "$TMP_DIR/$ASSET" "$BINARY"
 
 info 'Configuring WireGuard interface and routing'
 SERVER_PRIVATE_KEY=$(wg genkey)
