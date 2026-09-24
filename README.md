@@ -135,7 +135,7 @@ curl -fsS https://api.example.com/install/node.sh -o /dev/null
 
 ~~~sh
 docker compose exec api python -m app.cli create-tenant main-service "Main Service"
-docker compose exec api python -m app.cli issue-key main-service panel-admin --scopes servers:read servers:write
+docker compose exec api python -m app.cli issue-key main-service panel-admin --scopes servers:read servers:write peers:read peers:write
 docker compose exec api python -m app.cli issue-key main-service storefront --scopes plans:read plans:write users:read users:write orders:create orders:read payments:confirm subscriptions:read subscriptions:renew subscriptions:write peers:read peers:write webhooks:read webhooks:write
 ~~~
 
@@ -150,7 +150,15 @@ docker compose up -d --force-recreate api worker
 
 ### ۷. ورود به پنل
 
-https://api.example.com/panel را باز کنید و کلید panel-admin را وارد کنید. پنل فعلی برای مدیریت Nodeها و Interfaceهاست؛ مدیریت طرح، کاربر، سفارش و اشتراک از REST API انجام می‌شود.
+https://api.example.com/panel را باز کنید و کلید panel-admin را وارد کنید. پنل، Node و Interfaceها را مدیریت می‌کند و نمای کلی تعداد Peerها و مصرف را نشان می‌دهد. در بخش «کلاینت‌ها» می‌توانید Peerها را با شناسه کاربر، IP، شناسه اشتراک یا نام Node پیدا کنید؛ وضعیت و مصرف را ببینید، برای اشتراک فعال دستگاه بسازید، فایل اتصال یا QR محرمانه بگیرید، و Peer را بازسازی یا لغو کنید. تغییرات لغو و بازسازی به‌صورت job به Node فرستاده می‌شوند؛ وضعیت نهایی را پس از اتصال Node با «به‌روزرسانی» بررسی کنید.
+
+اگر سرور را پیش‌تر راه‌اندازی کرده‌اید و کلید فعلی فقط scopeهای `servers:read` و `servers:write` دارد، لازم نیست آن را دست‌کاری کنید. یک کلید جدید بسازید و آن را در پنل از «تنظیم کلید API» وارد کنید:
+
+~~~sh
+docker compose exec api python -m app.cli issue-key main-service panel-admin-v2 --scopes servers:read servers:write peers:read peers:write
+~~~
+
+کلید قبلی را تا زمانی که ورود با کلید جدید را آزمایش نکرده‌اید حذف نکنید. Endpoint فهرست Peerها tenant-scoped و صفحه‌بندی‌شده است و اطلاعات کلید خصوصی/config را در پاسخ JSON برنمی‌گرداند. دسترسی به فایل config و QR فقط از endpointهای محافظت‌شده با `peers:read` انجام می‌شود.
 
 ## بخش دوم: نصب Node WireGuard
 

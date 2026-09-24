@@ -15,7 +15,7 @@ import qrcode
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
-from sqlalchemy import select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -520,6 +520,60 @@ def list_peers(subscription_id: str, request: Request, auth=Depends(require_scop
     rows = db.scalars(select(Peer).where(Peer.subscription_id == subscription_id,
                                           Peer.tenant_id == tenant_id)).all()
     return success(rows, request)
+
+
+@app.get("/api/v1/peers", response_model=ApiResponse[dict])
+def search_peers(request: Request, q: str = "", status: str = "", country: str = "",
+                 offset: int = 0, limit: int = 50,
+                 auth=Depends(require_scope("peers:read")), db: Session = Depends(get_db)):
+    tenant_id = tenant_scope(auth)
+    conditions = [Peer.tenant_id == tenant_id, Server.tenant_id == tenant_id,
+                  Subscription.tenant_id == tenant_id, User.tenant_id == tenant_id]
+    if status:
+        conditions.append(Peer.status == status)
+    if country:
+        conditions.append(Server.country == country.strip().upper())
+    query_text = q.strip()[:120]
+    if query_text:
+        conditions.append(or_(
+            Peer.id.contains(query_text, autoescape=True),
+            Peer.client_ip.contains(query_text, autoescape=True),
+            Subscription.id.contains(query_text, autoescape=True),
+            User.external_id.contains(query_text, autoescape=True),
+            Server.name.contains(query_text, autoescape=True),
+        ))
+
+    joins = (select(Peer, Server.name, Server.country, Subscription.user_id, User.external_id,
+                    Subscription.status)
+             .join(Server, Server.id == Peer.server_id)
+             .join(Subscription, Subscription.id == Peer.subscription_id)
+             .join(User, User.id == Subscription.user_id))
+    total = db.scalar(select(func.count()).select_from(
+        joins.with_only_columns(Peer.id).where(*conditions).subquery())) or 0
+    rows = db.execute(joins.where(*conditions).order_by(Peer.created_at.desc(), Peer.id)
+                      .offset(max(offset, 0)).limit(min(max(limit, 1), 100))).all()
+    counts = db.execute(select(
+        func.count(Peer.id),
+        func.coalesce(func.sum(case((Peer.status == "active", 1), else_=0)), 0),
+        func.coalesce(func.sum(Peer.rx_bytes + Peer.tx_bytes), 0),
+    ).where(Peer.tenant_id == tenant_id)).one()
+    items = [{
+        "id": peer.id,
+        "subscription_id": peer.subscription_id,
+        "user_id": user_id,
+        "external_user_id": external_id,
+        "subscription_status": subscription_status,
+        "server_id": peer.server_id,
+        "server_name": server_name,
+        "country": server_country,
+        "client_ip": peer.client_ip,
+        "status": peer.status,
+        "rx_bytes": peer.rx_bytes,
+        "tx_bytes": peer.tx_bytes,
+        "created_at": peer.created_at,
+    } for peer, server_name, server_country, user_id, external_id, subscription_status in rows]
+    return success({"items": items, "total": total,
+                    "summary": {"total": counts[0], "active": counts[1], "used_bytes": counts[2]}}, request)
 
 
 @app.post("/api/v1/peers/{peer_id}/revoke", response_model=ApiResponse[PeerOut], status_code=202)
