@@ -186,11 +186,11 @@ func (d *daemon) createPeer(input peerCreate) (map[string]any, error) {
 	if input.PeerID == "" { return nil, errors.New("peer_id is required") }
 	iface := input.InterfaceName; if iface == "" { iface = d.cfg.Interface }
 	if old, ok := d.state[input.PeerID]; ok && !input.ForceRecreate {
-		if err := wg("set", old.Interface, "peer", old.PublicKey, "allowed-ips", hostRoute(input.ClientIP)); err != nil { return nil, err }
+		if err := wgRun("set", old.Interface, "peer", old.PublicKey, "allowed-ips", hostRoute(input.ClientIP)); err != nil { return nil, err }
 		return map[string]any{"public_key": old.PublicKey, "config": old.Config}, nil
 	}
 	if old, ok := d.state[input.PeerID]; ok {
-		if err := wg("set", old.Interface, "peer", old.PublicKey, "remove"); err != nil { log.Printf("could not remove old peer key: %v", err) }
+		if err := wgRun("set", old.Interface, "peer", old.PublicKey, "remove"); err != nil { log.Printf("could not remove old peer key: %v", err) }
 		delete(d.state, input.PeerID)
 	}
 	privateKey, err := wg("genkey"); if err != nil { return nil, err }
@@ -300,7 +300,7 @@ func wgRunOutput(program string, args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-func wgInput(input, args ...string) (string, error) {
+func wgInput(input string, args ...string) (string, error) {
 	cmd := exec.Command("wg", args...); cmd.Stdin = strings.NewReader(input)
 	out, err := cmd.Output(); if err != nil { return "", err }; return strings.TrimSpace(string(out)), nil
 }

@@ -174,8 +174,8 @@ docker compose exec api python -m app.cli issue-key main-service panel-admin-v2 
 
 ~~~sh
 git pull origin main
-git tag wg-node-v0.1.0
-git push origin wg-node-v0.1.0
+git tag wg-node-v0.1.1
+git push origin wg-node-v0.1.1
 ~~~
 
 اگر این tag قبلاً وجود دارد، شماره نسخه‌ی استفاده‌نشده‌ی بعدی را انتخاب کنید؛ یک tag منتشرشده را جابه‌جا یا دوباره استفاده نکنید.

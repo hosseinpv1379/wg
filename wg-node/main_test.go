@@ -9,7 +9,7 @@ func TestHostRoute(t *testing.T) {
 	tests := map[string]string{
 		"10.44.0.8":     "10.44.0.8/32",
 		"10.44.0.8/32":  "10.44.0.8/32",
-		"2001:db8::1":   "2001:db8::1/32",
+		"2001:db8::1":   "2001:db8::1/128",
 	}
 	for input, expected := range tests {
 		if actual := hostRoute(input); actual != expected {
