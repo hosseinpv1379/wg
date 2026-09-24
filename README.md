@@ -65,11 +65,11 @@ docker compose version
 
 ### ۳. دریافت پروژه و ساخت تنظیمات محرمانه
 
-آدرس نمونه مخزن را با URL واقعی Git جایگزین کنید:
+مخزن پروژه را دریافت کنید:
 
 ~~~sh
 apt install -y git
-git clone <آدرس-مخزن-گیت> /opt/wg-panel
+git clone https://github.com/hosseinpv1379/wg.git /opt/wg-panel
 cd /opt/wg-panel
 python3 deploy/create-central-env.py
 ~~~
@@ -87,7 +87,7 @@ curl -fsS http://127.0.0.1:8000/health
 
 باید سرویس‌های db، api و worker بالا باشند و health مقدار "status":"ok" بدهد. Migration دیتابیس هنگام شروع API اجرا می‌شود؛ PostgreSQL و داده‌های آن در volume پایدار Compose هستند.
 
-بعد از انتشار نسخه‌ی جدید در شاخه `main` و برای دریافت نصب‌کننده در پنل مرکزی:
+بعد از انتشار تغییرات در شاخه `main`، پنل مرکزی را به‌روز کنید:
 
 ~~~sh
 cd /opt/wg-panel
@@ -95,7 +95,7 @@ git pull origin main
 docker compose up -d --build api worker
 ~~~
 
-این کار UI جدید پنل و endpoint دانلود نصاب را فعال می‌کند. آدرس پروژه در این راهنما `/opt/wg-panel` فرض شده است.
+این کار UI پنل، migrationها و endpoint دانلود نصاب را به‌روز می‌کند. آدرس پروژه در این راهنما `/opt/wg-panel` فرض شده است.
 
 ### ۵. نصب Caddy و فعال‌کردن HTTPS
 
@@ -158,9 +158,36 @@ https://api.example.com/panel را باز کنید و کلید panel-admin را 
 
 ### ۸. DNS و firewall نود
 
-برای Node دامنه یا TCP ورودی لازم نیست. UDP پورت WireGuard (پیش‌فرض 51820) را در firewall سیستم و ارائه‌دهنده باز کنید و اجازه اتصال خروجی TCP 443 به دامنه پنل را بدهید.
+برای Node دامنه یا TCP ورودی لازم نیست. نصاب اگر UFW فعال باشد قانون UDP و مسیریابی را اضافه می‌کند؛ در پنل ارائه‌دهنده VPS هم UDP (پیش‌فرض 51820) را باز کنید و اتصال خروجی TCP 443 به پنل را مجاز بگذارید.
 
-### ۹. ساخت server_api_key در پنل
+### پیش‌نیاز اولین نصب: انتشار باینری Go
+
+این مرحله را یک‌بار از checkout توسعه، پس از push شدن کد پروژه به GitHub انجام دهید. Tag باید روی commitی باشد که شامل `wg-node/` و `.github/workflows/wg-node-release.yml` است:
+
+~~~sh
+git pull origin main
+git tag wg-node-v0.1.0
+git push origin wg-node-v0.1.0
+~~~
+
+اگر این tag قبلاً وجود دارد، شماره نسخه‌ی استفاده‌نشده‌ی بعدی را انتخاب کنید؛ یک tag منتشرشده را جابه‌جا یا دوباره استفاده نکنید.
+
+در GitHub Actions صبر کنید workflow سبز شود و در بخش Releases وجود `wg-node-linux-amd64`، `wg-node-linux-arm64` و `SHA256SUMS` را بررسی کنید. تا قبل از انتشار این Release، نصاب Node باینری لازم را پیدا نمی‌کند.
+
+اگر می‌خواهید باینری‌ها را دستی بسازید، [Go را نصب کنید](https://go.dev/doc/install)، سپس از ریشه مخزن:
+
+~~~sh
+cd wg-node
+go test ./...
+mkdir -p ../dist
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o ../dist/wg-node-linux-amd64 .
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags='-s -w' -o ../dist/wg-node-linux-arm64 .
+(cd ../dist && sha256sum wg-node-linux-amd64 wg-node-linux-arm64 > SHA256SUMS)
+~~~
+
+این buildها برای Linux روی سرورهای x86-64 و ARM64 هستند و به Go روی Node نهایی احتیاج ندارند. برای اینکه نصب‌گر بتواند آن‌ها را دریافت کند، فایل‌ها باید در GitHub Release قرار بگیرند؛ workflow تگ بالا این کار را خودکار انجام می‌دهد.
+
+### ۹. ساخت شناسه و کلید اختصاصی Node
 
 در پنل وارد بخش Nodeها شوید و «نصب Node» را بزنید. نام و کد کشور را وارد کنید. پنل `NODE_ID` و `SERVER_API_KEY` اختصاصی می‌سازد؛ کلید فقط یک‌بار دیده می‌شود و برای هر Node باید کلید جدا بسازید.
 
@@ -172,7 +199,7 @@ https://api.example.com/panel را باز کنید و کلید panel-admin را 
 curl -fsSL https://api.example.com/install/node.sh -o /tmp/wg-node-install.sh && if [ "$(id -u)" -eq 0 ]; then bash /tmp/wg-node-install.sh; else sudo bash /tmp/wg-node-install.sh; fi
 ~~~
 
-نصاب URL پنل، شناسه و کلید Node (ورودی مخفی)، IP عمومی یا DNS، پورت UDP و pool آدرس را می‌پرسد. سپس WireGuard tools و باینری Go مناسب CPU را از GitHub Release دانلود و SHA-256 را بررسی می‌کند، کلید سرور را می‌سازد، سرویس‌های `wg-quick@wg0` و `wg-node` را فعال و Interface را خودکار در پنل ثبت می‌کند. کلید در `/etc/wg-node/node.env` با permission 600 می‌ماند. مدیریت Node از طریق HTTPS خروجی انجام می‌شود.
+نصاب URL پنل، شناسه و کلید Node (ورودی مخفی)، IP عمومی یا DNS، پورت UDP و pool آدرس را می‌پرسد. سپس WireGuard و ابزارهای شبکه را نصب می‌کند، باینری Go متناسب CPU را از GitHub Release دانلود و SHA-256 آن را بررسی می‌کند، کلید سرور را می‌سازد، forwarding و NAT IPv4 را پیکربندی می‌کند و سرویس‌های systemd را فعال می‌کند. Node پس از اتصال، Interface را خودکار در پنل ثبت می‌کند. کلید در `/etc/wg-node/node.env` با permission 600 می‌ماند. ارتباط مدیریتی از HTTPS خروجی است.
 
 برای نمونه‌ی پنج موقعیت، این مراحل را روی هر VPS تکرار کنید:
 
@@ -186,7 +213,47 @@ curl -fsSL https://api.example.com/install/node.sh -o /tmp/wg-node-install.sh &&
 
 بعد از اتمام، وضعیت Node را در پنل بررسی و **Test Connection** را اجرا کنید. برای تونل، UDP پورت انتخابی باید در firewall ارائه‌دهنده باز باشد.
 
-نصاب برای Ubuntu/Debian طراحی شده است. فایل محرمانه در `/etc/wg-node/node.env` و state رمزگذاری‌شده peerها در `/var/lib/wg-node/peers.json.enc` است. از این فایل‌ها backup امن بگیرید.
+نصاب خودکار برای Ubuntu/Debian طراحی شده است. با `apt` بسته‌ی `wireguard` و ابزارهای شبکه را نصب می‌کند؛ این روش با [راهنمای نصب رسمی WireGuard](https://www.wireguard.com/install/) هماهنگ است. روی Node نهایی Python، Docker یا Go لازم نیست. فایل محرمانه در `/etc/wg-node/node.env` با دسترسی root-only و state رمزگذاری‌شده peerها در `/var/lib/wg-node/peers.json.enc` است. از هر دو backup امن بگیرید.
+
+بعد از نصب، `wg-quick@wg0` تونل WireGuard را بالا می‌آورد و `wg-node` سرویس مدیریتی را اجرا می‌کند. Node خودش به پنل وصل می‌شود و Interface را ثبت می‌کند؛ لازم نیست آن را دوباره دستی در بخش Interfaceها بسازید. در firewall ارائه‌دهنده، UDP پورت WireGuard را باز کنید. اگر UFW فعال باشد، نصب‌گر قانون محلی UDP و route را هم اضافه می‌کند.
+
+مدیریت سرویس روی Node:
+
+~~~sh
+systemctl status wg-quick@wg0 wg-node
+journalctl -u wg-node -f
+wg show wg0
+systemctl restart wg-node
+systemctl restart wg-quick@wg0
+~~~
+
+فایل تنظیم WireGuard در `/etc/wireguard/wg0.conf` و unit سرویس در `/etc/systemd/system/wg-node.service` است. کلید خصوصی سرور فقط در فایل root-only WireGuard ذخیره می‌شود. اگر `wg0.conf` یا `/etc/wg-node/node.env` از قبل باشد، نصب‌گر برای محافظت از تنظیمات قبلی متوقف می‌شود.
+
+نصاب این unit را برای daemon می‌سازد؛ `EnvironmentFile` کلید را از فایل root-only می‌خواند و systemd بعد از خرابی سرویس آن را دوباره اجرا می‌کند:
+
+~~~ini
+[Unit]
+Description=WireGuard Panel Node Agent
+After=network-online.target wg-quick@wg0.service
+Wants=network-online.target
+Requires=wg-quick@wg0.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/wg-node/node.env
+ExecStart=/usr/local/bin/wg-node
+Restart=always
+RestartSec=3
+User=root
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/wg-node
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+~~~
 
 ### به‌روزرسانی Node
 
@@ -263,7 +330,7 @@ wg show wg0
 | Test Connection ناموفق است | روی Node وضعیت wg-node، لاگ journalctl و دسترسی خروجی TCP 443 به پنل را بررسی کنید. |
 | Node وصل است ولی VPN کار نمی‌کند | UDP پورت در firewall ارائه‌دهنده، IP/پورت endpoint، کلید عمومی، pool و wg0. |
 | Peer بعد restart برنگشته | سرویس wg-quick@wg0 و wg-node، فایل state در /var/lib/wg-node و لاگ daemon را بررسی کنید. |
-| API key گم شده | مقدار خام قابل بازیابی نیست؛ کلید تازه با scope لازم صادر و کلید قبلی را غیرفعال کنید. |
+| کلید پنل گم شده | از سرور مرکزی با CLI کلید مدیریتی تازه صادر و قبلی را لغو کنید. کلید Node قابل بازیابی نیست؛ Node را غیرفعال و برای جایگزین، نصب تازه بسازید. |
 
 Worker را در این نسخه فقط با یک replica اجرا کنید و آن را scale نکنید. قبل از تغییر شبکه یا به‌روزرسانی، backup معتبر داشته باشید.
 

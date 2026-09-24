@@ -58,7 +58,7 @@ curl -fsS -H "X-Node-Key: $NODE_KEY" "$PANEL_URL/api/v1/node-agent/$NODE_ID/comm
 
 info 'Installing WireGuard tools and the Go Node service'
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl wireguard-tools iptables
+DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl wireguard iptables iproute2 procps
 install -d -m 0700 "$NODE_DIR" /var/lib/wg-node /etc/wireguard
 ARCH=$(dpkg --print-architecture)
 case "$ARCH" in
