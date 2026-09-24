@@ -23,6 +23,9 @@ dependencies = [
 [project.scripts]
 wg-service = "app.cli:main"
 
+[tool.setuptools]
+py-modules = ["wg_manager"]
+
 [tool.setuptools.packages.find]
 include = ["app*"]
 

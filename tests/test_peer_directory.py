@@ -109,8 +109,10 @@ class PeerDirectoryTests(unittest.TestCase):
     def test_panel_serves_peer_management_view(self):
         response = self.client.get("/panel")
         self.assertEqual(response.status_code, 200)
-        self.assertIn('data-view="clients"', response.text)
-        self.assertIn("peer-recreate", response.text)
+        self.assertIn('data-view="peers"', response.text)
+        self.assertIn('data-view="subscriptions"', response.text)
+        self.assertIn("recreate-peer", response.text)
+        self.assertIn("id=\"lookup-user-form\"", response.text)
 
 
 if __name__ == "__main__":

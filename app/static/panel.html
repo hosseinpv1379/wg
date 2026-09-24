@@ -3,215 +3,876 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>WireGuard | پنل مدیریت</title>
+  <meta name="theme-color" content="#173b38">
+  <title>WireGuard | کنسول مدیریت</title>
   <style>
-    :root { color-scheme: light; --ink:#172b3a; --muted:#657887; --line:#dbe4e8; --canvas:#f4f7f7; --white:#fff; --green:#16755a; --green-soft:#e6f3ed; --amber:#a45c13; --amber-soft:#fff2dc; --red:#a43e3e; }
-    * { box-sizing:border-box } body { margin:0; color:var(--ink); background:var(--canvas); font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif }
-    button,input,select { font:inherit } button { cursor:pointer } .shell { display:grid; grid-template-columns:230px minmax(0,1fr); min-height:100vh }
-    aside { padding:22px 16px; background:#132d38; color:#e8f1ef } .brand { display:flex; gap:11px; align-items:center; padding:5px 8px 24px; border-bottom:1px solid #35515a; font-weight:700; font-size:16px }
-    .mark { display:grid; place-items:center; width:34px; height:34px; border-radius:8px; background:#288166; color:white; font-weight:800 }
-    .nav-label { margin:24px 8px 8px; color:#9bb1b3; font-size:11px } .nav-item { display:flex; gap:10px; align-items:center; width:100%; padding:9px 10px; border:0; border-radius:5px; color:#e4eeec; background:transparent; text-align:right }
-    .nav-item.active,.nav-item:hover { background:#24434c } .nav-icon { width:20px; color:#91cdb4; text-align:center }
-    main { min-width:0; padding:24px clamp(16px,3vw,38px) 42px } header { display:flex; justify-content:space-between; align-items:center; gap:16px; border-bottom:1px solid var(--line); padding:0 0 18px; margin-bottom:24px }
-    h1 { font-size:22px; line-height:1.3; margin:0 0 3px } .sub { color:var(--muted); font-size:13px } .header-actions { display:flex; align-items:center; gap:8px }
-    .icon-btn { width:36px;height:36px;border:1px solid var(--line);border-radius:5px;background:white;color:var(--ink);font-size:17px } .key-btn { border:1px solid var(--line); border-radius:5px; background:white; padding:7px 12px; color:var(--ink) }
-    .stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-bottom:22px } .stat { background:white; border:1px solid var(--line); padding:14px 16px; border-radius:5px }
-    .stat-label { color:var(--muted); font-size:12px } .stat-value { display:block; margin-top:5px; font-size:24px; font-weight:700; direction:ltr; text-align:right }
-    .section-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:24px 0 10px } h2 { font-size:16px; margin:0 } .section-desc { color:var(--muted); font-size:12px }
-    .table-wrap { overflow:auto; background:white; border:1px solid var(--line); border-radius:5px } table { width:100%; border-collapse:collapse; min-width:660px } th,td { text-align:right; padding:11px 14px; border-bottom:1px solid #edf1f2; white-space:nowrap } th { color:var(--muted); background:#fafcfc; font-size:12px; font-weight:600 } tr:last-child td { border-bottom:0 }
-    .badge { display:inline-flex; align-items:center; gap:6px; border-radius:4px; padding:2px 8px; font-size:12px; color:var(--amber); background:var(--amber-soft) } .badge.online { color:var(--green); background:var(--green-soft) }.dot { width:6px;height:6px;border-radius:50%;background:currentColor }
-    .text-btn { border:0; background:transparent; color:var(--green); padding:4px 5px } .primary { border:1px solid var(--green); border-radius:5px; padding:7px 12px; color:white; background:var(--green) } .primary:hover { background:#105d47 }
-    .empty { padding:25px; text-align:center; color:var(--muted) } .hidden { display:none!important }
-    .overlay { position:fixed; inset:0; z-index:4; display:grid; place-items:center; padding:16px; background:#10232c88 } .dialog { width:min(520px,100%); max-height:90vh; overflow:auto; background:white; border-radius:7px; box-shadow:0 16px 48px #10232c33 }
-    .dialog-head { display:flex; justify-content:space-between; align-items:center; padding:15px 18px; border-bottom:1px solid var(--line) } .dialog-body { padding:18px } .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px }
-    label { display:block; margin:0 0 5px; font-size:12px; color:#425866 } .field { margin-bottom:12px } input,select { width:100%; min-height:38px; border:1px solid #cbd7dc; border-radius:4px; padding:7px 9px; background:white; color:var(--ink); direction:ltr; text-align:left } input:focus,select:focus { outline:2px solid #b9ded0; border-color:var(--green) }
-    .dialog-foot { display:flex; justify-content:flex-start; gap:8px; padding-top:10px }.secondary { border:1px solid var(--line); border-radius:5px; background:white; padding:7px 12px; color:var(--ink) }
-    .toast { position:fixed; bottom:20px; left:20px; padding:10px 14px; border-radius:5px; color:white; background:#173d37; box-shadow:0 4px 16px #122a2633; z-index:8; max-width:min(440px,calc(100vw - 40px)) }.toast.error { background:#8f3737 }
-    #key-modal .dialog { width:min(430px,100%) } .hint { color:var(--muted); font-size:12px; margin:0 0 14px }
-    .stats { grid-template-columns:repeat(5,minmax(0,1fr)) }
-    .toolbar { display:flex; align-items:end; gap:9px; flex-wrap:wrap; margin:14px 0 }
-    .toolbar .field { flex:1 1 190px; margin:0 }
-    .toolbar .field.compact { flex:0 1 155px }
-    .toolbar input,.toolbar select { direction:rtl; text-align:right }
-    .peer-table { min-width:980px }
-    .peer-actions { display:flex; align-items:center; gap:4px }
-    .peer-actions button { white-space:nowrap }
-    .pagination { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 14px; border-top:1px solid #edf1f2; color:var(--muted); font-size:12px }
-    .pagination-actions { display:flex; gap:6px }
-    .pagination button:disabled { opacity:.45; cursor:default }
-    .notice { margin:14px 0; padding:12px 14px; border-right:3px solid var(--amber); background:var(--amber-soft); color:#68420e }
-    .qr-image { display:block; width:min(320px,100%); height:auto; margin:8px auto 0; image-rendering:pixelated }
-    .mono { direction:ltr; text-align:left; font-family:ui-monospace,SFMono-Regular,Menlo,monospace }
-    @media(max-width:760px) { .shell { grid-template-columns:1fr } aside { padding:10px 12px } .brand { padding:2px 5px 9px; border:0 } .nav-label { display:none } nav { display:flex; gap:4px; overflow-x:auto; margin-top:8px } .nav-item { width:auto; flex:none; padding:7px 9px } main { padding:17px 13px 30px } header { align-items:flex-start } h1 { font-size:19px } .stats { gap:7px } .stat { padding:10px } .stat-value { font-size:20px } .grid { grid-template-columns:1fr } }
-    @media(max-width:420px) { .stats { grid-template-columns:1fr 1fr } .stats .stat:last-child { grid-column:1/-1 } .header-actions { gap:5px } .key-btn { font-size:12px; padding:6px 8px } }
+    :root {
+      color-scheme: light;
+      --ink: #1b2c2b;
+      --muted: #697b78;
+      --line: #dce5e1;
+      --canvas: #f3f6f4;
+      --paper: #fff;
+      --sidebar: #173b38;
+      --sidebar-muted: #a8c2bb;
+      --green: #14745f;
+      --green-hover: #105b4c;
+      --green-soft: #e6f4ed;
+      --blue: #376f98;
+      --blue-soft: #eaf2f8;
+      --amber: #9a6415;
+      --amber-soft: #fbf2df;
+      --red: #a54143;
+      --red-soft: #faeaea;
+      --purple: #7157a5;
+      --purple-soft: #f0ecf8;
+      --shadow: 0 14px 44px #18312d24;
+      font-synthesis: none;
+    }
+    * { box-sizing: border-box }
+    body { margin: 0; color: var(--ink); background: var(--canvas); font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif }
+    button, input, select, textarea { font: inherit }
+    button { cursor: pointer }
+    button:disabled { cursor: wait; opacity: .55 }
+    .app { min-height: 100vh; display: grid; grid-template-columns: 248px minmax(0, 1fr) }
+    .sidebar { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; padding: 19px 14px 14px; overflow-y: auto; color: #edf5f1; background: var(--sidebar) }
+    .brand { display: flex; align-items: center; gap: 11px; padding: 3px 8px 18px; border-bottom: 1px solid #ffffff21 }
+    .brand-mark { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 8px; background: #67b696; color: #103e34; font-weight: 800; font-size: 13px; direction: ltr }
+    .brand-name { font-size: 14px; font-weight: 700; line-height: 1.25 }
+    .brand-caption { display: block; margin-top: 3px; color: var(--sidebar-muted); font-size: 10px; font-weight: 500 }
+    .nav-group { margin-top: 19px }
+    .nav-title { padding: 0 10px 7px; color: var(--sidebar-muted); font-size: 10px; font-weight: 700 }
+    .nav-list { display: grid; gap: 3px }
+    .nav-item { width: 100%; min-height: 38px; display: flex; align-items: center; gap: 10px; padding: 7px 10px; border: 0; border-radius: 5px; color: #e3eeea; background: transparent; text-align: right }
+    .nav-item:hover { background: #ffffff10 }
+    .nav-item.active { color: #fff; background: #2b5e53; box-shadow: inset -2px 0 #7ed1ae }
+    .nav-symbol { width: 19px; color: #9ed2bb; font-size: 15px; text-align: center }
+    .nav-item.active .nav-symbol { color: #c2f4dc }
+    .sidebar-spacer { flex: 1 }
+    .connection-state { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 10px; border-top: 1px solid #ffffff21; color: #d9e9e2; font-size: 11px }
+    .connection-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: #d8a44c }
+    .connection-dot.online { background: #6ed19b }
+    .workspace { min-width: 0; padding: 0 clamp(16px, 3vw, 42px) 48px }
+    .topbar { min-height: 78px; display: flex; align-items: center; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--line) }
+    .page-heading { min-width: 0 }
+    h1 { margin: 0; font-size: 21px; line-height: 1.3; font-weight: 750 }
+    .page-subtitle { margin-top: 4px; color: var(--muted); font-size: 12px }
+    .top-actions { display: flex; align-items: center; gap: 8px }
+    .updated-at { color: var(--muted); font-size: 11px; white-space: nowrap }
+    .icon-button, .outline-button, .primary-button, .danger-button, .quiet-button { min-height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid transparent; border-radius: 5px; padding: 7px 11px; white-space: nowrap; transition: background .15s, border-color .15s, color .15s }
+    .icon-button { width: 36px; padding: 0; border-color: var(--line); background: var(--paper); color: var(--ink); font-size: 17px }
+    .outline-button { border-color: var(--line); background: var(--paper); color: var(--ink) }
+    .outline-button:hover, .icon-button:hover { border-color: #aac0b7; background: #f9fbfa }
+    .primary-button { background: var(--green); color: white }
+    .primary-button:hover { background: var(--green-hover) }
+    .danger-button { border-color: #efd0d0; background: #fff; color: var(--red) }
+    .danger-button:hover { background: var(--red-soft) }
+    .quiet-button { min-height: 30px; padding: 4px 7px; background: transparent; color: var(--green); font-size: 12px }
+    .quiet-button:hover { background: var(--green-soft) }
+    .quiet-button.danger { color: var(--red) }
+    .main-content { padding-top: 23px }
+    .page-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px }
+    .page-toolbar h2 { margin: 0; font-size: 16px }
+    .page-toolbar p { margin: 4px 0 0; color: var(--muted); font-size: 12px }
+    .toolbar-actions { display: flex; flex-wrap: wrap; gap: 7px }
+    .stats-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 22px }
+    .stat { position: relative; min-width: 0; min-height: 104px; padding: 14px 15px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper) }
+    .stat::before { position: absolute; content: ""; top: 14px; right: 0; width: 3px; height: 27px; border-radius: 3px 0 0 3px; background: var(--stat-color, var(--green)) }
+    .stat-label { display: block; color: var(--muted); font-size: 11px }
+    .stat-value { display: block; margin-top: 7px; font-size: 23px; line-height: 1.1; font-weight: 750; direction: ltr; text-align: right; unicode-bidi: plaintext }
+    .stat-note { display: block; margin-top: 7px; color: var(--muted); font-size: 10px }
+    .dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(280px, .85fr); gap: 14px; align-items: start }
+    .panel-section { min-width: 0; margin-bottom: 17px; border-top: 1px solid var(--line); padding-top: 13px }
+    .panel-section.flush { border-top: 0; padding-top: 0 }
+    .section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 11px }
+    .section-heading h2, .section-heading h3 { margin: 0; font-size: 14px }
+    .section-heading p { margin: 3px 0 0; color: var(--muted); font-size: 11px }
+    .section-link { border: 0; background: transparent; color: var(--green); font-size: 11px }
+    .surface { min-width: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--paper) }
+    .surface-pad { padding: 15px }
+    .table-scroll { overflow: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--paper) }
+    table { width: 100%; border-collapse: collapse; text-align: right }
+    th, td { height: 46px; padding: 9px 12px; border-bottom: 1px solid #edf1ef; vertical-align: middle; white-space: nowrap }
+    th { height: 38px; color: #6e807c; background: #f8faf9; font-size: 10px; font-weight: 700 }
+    td { font-size: 12px }
+    tr:last-child td { border-bottom: 0 }
+    .table-primary { display: block; color: var(--ink); font-weight: 650 }
+    .table-secondary { display: block; margin-top: 2px; color: var(--muted); font-size: 10px }
+    .mono { direction: ltr; text-align: left; unicode-bidi: plaintext; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px }
+    .status { display: inline-flex; align-items: center; gap: 6px; padding: 3px 7px; border-radius: 4px; color: var(--amber); background: var(--amber-soft); font-size: 10px; line-height: 1.4 }
+    .status::before { width: 6px; height: 6px; content: ""; flex: none; border-radius: 50%; background: currentColor }
+    .status.good { color: var(--green); background: var(--green-soft) }
+    .status.info { color: var(--blue); background: var(--blue-soft) }
+    .status.bad { color: var(--red); background: var(--red-soft) }
+    .status.purple { color: var(--purple); background: var(--purple-soft) }
+    .empty-state { padding: 30px 16px; color: var(--muted); text-align: center; font-size: 12px }
+    .empty-state strong { display: block; margin-bottom: 4px; color: var(--ink); font-size: 13px }
+    .toolbar { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; margin: 13px 0 }
+    .field { min-width: 0; margin-bottom: 12px }
+    .toolbar .field { flex: 1 1 170px; margin: 0 }
+    .toolbar .field.narrow { flex: 0 1 150px }
+    label { display: block; margin-bottom: 5px; color: #455b56; font-size: 11px; font-weight: 600 }
+    input, select, textarea { width: 100%; min-height: 38px; border: 1px solid #cbd8d2; border-radius: 4px; padding: 8px 10px; color: var(--ink); background: white; outline: none }
+    input[dir="ltr"], .ltr-input { direction: ltr; text-align: left }
+    input:focus, select:focus, textarea:focus { border-color: #4b9a7e; box-shadow: 0 0 0 3px #4b9a7e20 }
+    textarea { min-height: 78px; resize: vertical }
+    .field-help { margin-top: 4px; color: var(--muted); font-size: 10px }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px }
+    .notice { margin: 11px 0; padding: 10px 12px; border-right: 3px solid #d69c3e; border-radius: 3px; color: #70501b; background: var(--amber-soft); font-size: 11px }
+    .notice.error { border-color: var(--red); color: #84393c; background: var(--red-soft) }
+    .notice.info { border-color: var(--blue); color: #315f80; background: var(--blue-soft) }
+    .notice.success { border-color: var(--green); color: #23634e; background: var(--green-soft) }
+    .bar-list { display: grid; gap: 11px }
+    .bar-row { display: grid; grid-template-columns: 67px minmax(60px, 1fr) 30px; align-items: center; gap: 8px; color: var(--muted); font-size: 10px }
+    .bar-track { height: 8px; overflow: hidden; border-radius: 5px; background: #edf1ef }
+    .bar-fill { height: 100%; min-width: 2px; border-radius: inherit; background: var(--bar-color, var(--green)) }
+    .node-list { display: grid; gap: 0 }
+    .node-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid #edf1ef }
+    .node-row:last-child { border-bottom: 0 }
+    .node-meta { min-width: 0 }
+    .node-meta strong { display: block; font-size: 12px }
+    .node-meta span { display: block; margin-top: 2px; color: var(--muted); font-size: 10px }
+    .progress-line { width: 90px; height: 5px; overflow: hidden; border-radius: 4px; background: #e9efec }
+    .progress-line i { display: block; height: 100%; border-radius: inherit; background: #dcaa54 }
+    .pagination { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; color: var(--muted); font-size: 10px }
+    .pagination-actions { display: flex; gap: 5px }
+    .pagination-actions button { min-height: 30px; padding: 4px 8px }
+    .actions-cell { display: flex; align-items: center; gap: 2px }
+    .filter-search { position: relative; flex: 1 1 240px }
+    .filter-search input { padding-right: 34px }
+    .filter-search .search-symbol { position: absolute; top: 9px; right: 11px; color: #82938e }
+    .segmented { display: inline-flex; padding: 3px; border: 1px solid var(--line); border-radius: 5px; background: #edf2ef }
+    .segmented button { min-height: 29px; border: 0; border-radius: 3px; padding: 4px 9px; color: var(--muted); background: transparent; font-size: 10px }
+    .segmented button.active { color: var(--ink); background: white; box-shadow: 0 1px 3px #163c3022 }
+    .mobile-menu { display: none }
+    .overlay { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 18px; background: #10272388; backdrop-filter: blur(2px) }
+    .dialog { width: min(550px, 100%); max-height: min(88vh, 850px); overflow: auto; border: 1px solid #d7e1dc; border-radius: 7px; background: white; box-shadow: var(--shadow) }
+    .dialog.wide { width: min(760px, 100%) }
+    .dialog-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 17px; border-bottom: 1px solid var(--line); background: white }
+    .dialog-head strong { font-size: 14px }
+    .dialog-body { padding: 16px 17px }
+    .dialog-foot { position: sticky; bottom: 0; display: flex; justify-content: flex-start; gap: 7px; padding: 11px 17px; border-top: 1px solid var(--line); background: #fff }
+    .dialog-close { width: 31px; height: 31px; flex: none; border: 1px solid var(--line); border-radius: 4px; color: var(--ink); background: #fff; font-size: 17px }
+    .checkbox-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; padding: 8px 0 }
+    .check-row { display: flex; align-items: center; gap: 7px; color: var(--ink); font-size: 11px }
+    .check-row input { width: 15px; min-height: auto; height: 15px; margin: 0; accent-color: var(--green) }
+    .secret-output { padding: 12px; border: 1px solid #e7dcae; border-radius: 4px; background: #fffaf0 }
+    .secret-output code { display: block; overflow-wrap: anywhere; margin-top: 7px; color: #283e37; direction: ltr; text-align: left; font-size: 11px }
+    .qr-image { display: block; width: min(320px, 100%); height: auto; margin: 8px auto 0; image-rendering: pixelated }
+    .toast-stack { position: fixed; left: 18px; bottom: 18px; z-index: 40; display: grid; gap: 7px; width: min(390px, calc(100vw - 36px)) }
+    .toast { padding: 10px 13px; border: 1px solid #ffffff22; border-radius: 5px; color: white; background: #214d40; box-shadow: 0 7px 22px #18342f2b; font-size: 12px; animation: toast-in .18s ease-out }
+    .toast.error { background: #873d40 }
+    .hidden { display: none !important }
+    .spin { display: inline-block; animation: spin .8s linear infinite }
+    @keyframes spin { to { transform: rotate(360deg) } }
+    @keyframes toast-in { from { transform: translateY(7px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+    @media (max-width: 1120px) {
+      .app { grid-template-columns: 218px minmax(0, 1fr) }
+      .stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) }
+      .dashboard-grid { grid-template-columns: minmax(0, 1fr) }
+    }
+    @media (max-width: 760px) {
+      .app { display: block }
+      .sidebar { position: fixed; z-index: 15; top: 0; right: 0; width: 270px; height: 100dvh; transform: translateX(105%); transition: transform .18s ease; box-shadow: var(--shadow) }
+      .sidebar.open { transform: translateX(0) }
+      .mobile-menu { display: inline-flex }
+      .workspace { padding: 0 14px 32px }
+      .topbar { min-height: 68px; gap: 8px }
+      .top-actions { gap: 5px }
+      .updated-at { display: none }
+      h1 { font-size: 18px }
+      .page-subtitle { font-size: 10px }
+      .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px }
+      .stat { min-height: 91px; padding: 12px }
+      .stat-value { font-size: 20px }
+      .stat:last-child:nth-child(odd) { grid-column: 1 / -1 }
+      .main-content { padding-top: 16px }
+    }
+    @media (max-width: 480px) {
+      .workspace { padding-right: 11px; padding-left: 11px }
+      .key-button-label { display: none }
+      .grid-2 { grid-template-columns: 1fr }
+      .checkbox-list { grid-template-columns: 1fr }
+      .page-toolbar { align-items: flex-start }
+      .table-scroll table { min-width: 660px }
+    }
   </style>
 </head>
 <body>
-  <div class="shell">
-    <aside>
-      <div class="brand"><span class="mark">WG</span><span>WireGuard Manager</span></div>
-      <div class="nav-label">زیرساخت</div>
-      <nav aria-label="ناوبری اصلی">
-        <button class="nav-item active" data-view="overview"><span class="nav-icon">▦</span>نمای کلی</button>
-        <button class="nav-item" data-view="nodes"><span class="nav-icon">⌘</span>Nodeها</button>
-        <button class="nav-item" data-view="interfaces"><span class="nav-icon">◫</span>Interfaceها</button>
-        <button class="nav-item" data-view="clients"><span class="nav-icon">◎</span>کلاینت‌ها</button>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand"><span class="brand-mark">WG</span><span class="brand-name">WireGuard Manager<span class="brand-caption">کنسول مدیریت سرویس</span></span></div>
+      <nav aria-label="ناوبری پنل">
+        <div class="nav-group"><div class="nav-title">مدیریت فروش</div><div class="nav-list">
+          <button class="nav-item active" data-view="overview"><span class="nav-symbol">▦</span>نمای کلی</button>
+          <button class="nav-item" data-view="plans"><span class="nav-symbol">◇</span>طرح‌ها</button>
+          <button class="nav-item" data-view="users"><span class="nav-symbol">◎</span>کاربران</button>
+          <button class="nav-item" data-view="orders"><span class="nav-symbol">≡</span>سفارش‌ها</button>
+          <button class="nav-item" data-view="subscriptions"><span class="nav-symbol">▤</span>اشتراک‌ها</button>
+        </div></div>
+        <div class="nav-group"><div class="nav-title">زیرساخت شبکه</div><div class="nav-list">
+          <button class="nav-item" data-view="nodes"><span class="nav-symbol">⌘</span>Nodeها</button>
+          <button class="nav-item" data-view="interfaces"><span class="nav-symbol">◫</span>Interfaceها</button>
+          <button class="nav-item" data-view="peers"><span class="nav-symbol">⌁</span>کلاینت‌ها و Peerها</button>
+        </div></div>
+        <div class="nav-group"><div class="nav-title">یکپارچه‌سازی و امنیت</div><div class="nav-list">
+          <button class="nav-item" data-view="webhooks"><span class="nav-symbol">↗</span>Webhookها</button>
+          <button class="nav-item" data-view="keys"><span class="nav-symbol">⚿</span>کلیدهای API</button>
+          <button class="nav-item" data-view="audit"><span class="nav-symbol">◷</span>گزارش رویدادها</button>
+        </div></div>
       </nav>
+      <div class="sidebar-spacer"></div>
+      <div class="connection-state"><span class="connection-dot" id="connection-dot"></span><span id="connection-label">اتصال بررسی نشده</span></div>
     </aside>
-    <main>
-      <header><div><h1 id="page-title">نمای کلی</h1><div class="sub" id="page-sub">وضعیت زیرساخت WireGuard</div></div><div class="header-actions"><button class="key-btn" id="api-key-button">تنظیم کلید API</button><button class="icon-btn" id="refresh" title="به‌روزرسانی" aria-label="به‌روزرسانی">↻</button></div></header>
-      <section class="stats" aria-label="آمار سرویس"><div class="stat"><span class="stat-label">Nodeها</span><b class="stat-value" id="node-count">-</b></div><div class="stat"><span class="stat-label">Node آنلاین</span><b class="stat-value" id="online-count">-</b></div><div class="stat"><span class="stat-label">Interfaceها</span><b class="stat-value" id="interface-count">-</b></div><div class="stat"><span class="stat-label">Peer فعال</span><b class="stat-value" id="peer-count">-</b></div><div class="stat"><span class="stat-label">مصرف Peerها</span><b class="stat-value" id="peer-usage">-</b></div></section>
-      <section id="nodes-section"><div class="section-head"><div><h2>Nodeها</h2><div class="section-desc">ماشین‌های WireGuard متصل به سرویس مرکزی؛ غیرفعال‌سازی، تخصیص جدید را متوقف می‌کند.</div></div><div class="header-actions"><button class="primary" id="add-node">＋ نصب Node</button></div></div><div class="table-wrap"><table><thead><tr><th>نام</th><th>موقعیت</th><th>وضعیت</th><th>Interfaceها</th><th>آخرین اتصال</th><th>عملیات</th></tr></thead><tbody id="nodes-body"></tbody></table><div id="nodes-empty" class="empty hidden">هنوز Nodeای ثبت نشده است.</div></div></section>
-      <section id="interfaces-section"><div class="section-head"><div><h2>Interfaceها</h2><div class="section-desc">هر Interface یک pool آدرس و endpoint مستقل دارد؛ اتصال‌های موجود قطع نمی‌شوند.</div></div><button class="primary" id="add-interface">＋ ثبت Interface</button></div><div class="table-wrap"><table><thead><tr><th>نام</th><th>Node</th><th>کشور</th><th>Endpoint</th><th>Pool</th><th>وضعیت</th></tr></thead><tbody id="interfaces-body"></tbody></table><div id="interfaces-empty" class="empty hidden">Interfaceای ثبت نشده است.</div></div></section>
-      <section id="clients-section" class="hidden">
-        <div class="section-head"><div><h2>کلاینت‌ها و Peerها</h2><div class="section-desc">جست‌وجو با شناسه‌ی کاربر، IP، شناسه‌ی اشتراک یا نام Node</div></div></div>
-        <div id="peers-access-notice" class="notice hidden">این کلید دسترسی مدیریت کلاینت ندارد. یک کلید پنل با scopeهای <span dir="ltr">servers:read, servers:write, peers:read, peers:write</span> بسازید و از «تنظیم کلید API» وارد کنید.</div>
-        <form id="peer-filters" class="toolbar">
-          <div class="field"><label for="peer-query">جست‌وجو</label><input id="peer-query" name="q" placeholder="شناسه کاربر، IP، اشتراک یا Node"></div>
-          <div class="field compact"><label for="peer-status">وضعیت</label><select id="peer-status" name="status"><option value="">همه وضعیت‌ها</option><option value="active">فعال</option><option value="provisioning">در حال ساخت</option><option value="recreating">در حال بازسازی</option><option value="revoking">در حال لغو</option><option value="revoked">لغوشده</option><option value="failed">ناموفق</option></select></div>
-          <div class="field compact"><label for="peer-country">موقعیت</label><select id="peer-country" name="country"><option value="">همه موقعیت‌ها</option></select></div>
-          <button class="primary" type="submit">جست‌وجو</button>
-        </form>
-        <div class="table-wrap"><table class="peer-table"><thead><tr><th>کاربر / Peer</th><th>IP کلاینت</th><th>موقعیت</th><th>وضعیت</th><th>دریافت / ارسال</th><th>ایجاد</th><th>عملیات</th></tr></thead><tbody id="peers-body"></tbody></table><div id="peers-empty" class="empty hidden">Peerای با این مشخصات پیدا نشد.</div><div id="peers-loading" class="empty hidden">در حال دریافت اطلاعات…</div><div class="pagination"><span id="peers-range">-</span><div class="pagination-actions"><button class="secondary" id="peers-prev" type="button">قبلی</button><button class="secondary" id="peers-next" type="button">بعدی</button></div></div></div>
-      </section>
+    <main class="workspace">
+      <header class="topbar">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0">
+          <button class="icon-button mobile-menu" id="mobile-menu" title="بازکردن منو" aria-label="بازکردن منو">☰</button>
+          <div class="page-heading"><h1 id="page-title">نمای کلی</h1><div class="page-subtitle" id="page-subtitle">وضعیت لحظه‌ای سرویس و عملیات فروش</div></div>
+        </div>
+        <div class="top-actions"><span class="updated-at" id="updated-at"></span><button class="outline-button" id="api-key-button" title="تنظیم کلید API"><span>⚿</span><span class="key-button-label">کلید API</span></button><button class="icon-button" id="refresh-button" title="به‌روزرسانی داده‌ها" aria-label="به‌روزرسانی">↻</button></div>
+      </header>
+      <div class="main-content" id="view" aria-live="polite"></div>
     </main>
   </div>
-  <div id="dialog-root"></div><div id="toast-root" aria-live="polite"></div>
+  <div id="modal-root"></div>
+  <div id="toast-stack" class="toast-stack" aria-live="polite"></div>
   <script>
-    const $ = (q) => document.querySelector(q);
-    let nodes = [], interfaces = [], peers = [], peerTotal = 0, peerSummary = null, peerOffset = 0, peerAccess = true;
-    const peerLimit = 50;
-    const titles = {overview:['نمای کلی','وضعیت سرویس WireGuard'],nodes:['Nodeها','مدیریت ماشین‌های WireGuard'],interfaces:['Interfaceها','تنظیمات شبکه‌ی هر Interface'],clients:['کلاینت‌ها','مدیریت Peerها و وضعیت مصرف']};
-    function toast(message, error=false) { const el=document.createElement('div'); el.className='toast'+(error?' error':''); el.textContent=message; $('#toast-root').replaceChildren(el); setTimeout(()=>el.remove(),4000); }
-    function key() { return sessionStorage.getItem('wg_api_key') || ''; }
-    async function api(path, options={}) {
-      const response=await fetch('/api/v1'+path,{...options,headers:{'Content-Type':'application/json','X-API-Key':key(),...(options.headers||{})}});
-      const body=await response.json().catch(()=>({}));
-      if(!response.ok || body.success===false) { const error=new Error(body.error?.message || body.detail?.message || `خطای ${response.status}`); error.code=body.error?.code || body.detail?.code; throw error; }
+    const $ = (selector, root = document) => root.querySelector(selector);
+    const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+    const state = {
+      view: 'overview', busy: false, lastUpdated: null,
+      nodes: [], servers: [], plans: [], orders: [], subscriptions: [],
+      peers: [], peerTotal: 0, peerSummary: null, peerOffset: 0,
+      ordersOffset: 0, subscriptionsOffset: 0, ordersHasNext: false, subscriptionsHasNext: false,
+      webhooks: [], audit: [], userLookup: null, userQuery: '',
+      errors: {}, peerFilters: { q: '', status: '', country: '' },
+      issuedKeys: JSON.parse(sessionStorage.getItem('wg_issued_key_refs') || '[]'),
+      deliveryWebhook: null, deliveryRows: [],
+    };
+    const PAGE = {
+      overview: ['نمای کلی', 'وضعیت لحظه‌ای سرویس و عملیات فروش'],
+      plans: ['طرح‌های فروش', 'تعریف تعرفه، حجم، مدت و موقعیت‌های قابل انتخاب'],
+      users: ['مدیریت کاربران', 'ساخت حساب فروشگاهی و مشاهده کاربران شناخته‌شده'],
+      orders: ['سفارش‌ها', 'پیگیری خرید، مبلغ و تأیید پرداخت'],
+      subscriptions: ['اشتراک‌ها', 'وضعیت سرویس، مصرف، تمدید و تعلیق'],
+      nodes: ['Nodeها', 'مدیریت ماشین‌های WireGuard و اتصال آن‌ها به پنل'],
+      interfaces: ['Interfaceها', 'Endpointها، pool آدرس و سلامت سرورهای WireGuard'],
+      peers: ['کلاینت‌ها و Peerها', 'دستگاه‌ها، مصرف و فایل‌های اتصال محرمانه'],
+      webhooks: ['Webhookها', 'ارسال رویدادهای سرویس به Backend فروش'],
+      keys: ['کلیدهای API', 'صدور کلید محدود برای اتصال Backendها'],
+      audit: ['گزارش رویدادها', 'ردیابی تغییرات ثبت‌شده در سرویس'],
+    };
+    const SCOPES = [
+      ['plans:read', 'مشاهده طرح‌ها'], ['plans:write', 'مدیریت طرح‌ها'],
+      ['users:read', 'مشاهده کاربر'], ['users:write', 'ساخت و مدیریت کاربر'],
+      ['orders:create', 'ساخت سفارش'], ['orders:read', 'مشاهده سفارش‌ها'],
+      ['payments:confirm', 'تأیید پرداخت'], ['subscriptions:read', 'مشاهده اشتراک'],
+      ['subscriptions:write', 'تعلیق و فعال‌سازی اشتراک'], ['subscriptions:renew', 'ساخت سفارش تمدید'],
+      ['peers:read', 'مشاهده Peer و کانفیگ'], ['peers:write', 'مدیریت دستگاه‌ها'],
+      ['servers:read', 'مشاهده Node و Interface'], ['servers:write', 'مدیریت Node و Interface'],
+      ['webhooks:read', 'مشاهده Webhookها'], ['webhooks:write', 'مدیریت Webhookها'],
+      ['keys:write', 'صدور و لغو کلید'], ['audit:read', 'مشاهده گزارش رویدادها'],
+    ];
+    const EVENTS = ['payment.confirmed', 'subscription.active', 'subscription.failed', 'subscription.suspended', 'subscription.resumed', 'subscription.expired', 'subscription.exhausted', 'subscription.quota_80', 'subscription.quota_95', 'peer.created'];
+    const STATUS = {
+      active: ['فعال', 'good'], online: ['آنلاین', 'good'], healthy: ['سالم', 'good'],
+      provisioning: ['در حال راه‌اندازی', 'info'], recreating: ['در حال بازسازی', 'info'],
+      revoking: ['در حال لغو', 'info'], revoked: ['لغوشده', 'bad'], failed: ['ناموفق', 'bad'],
+      disabled: ['غیرفعال', 'bad'], suspended: ['معلق', 'bad'], expired: ['منقضی', 'bad'],
+      pending_payment: ['در انتظار پرداخت', 'purple'], paid: ['پرداخت‌شده', 'good'],
+      confirmed: ['تأییدشده', 'good'], purchase: ['خرید', 'info'], renewal: ['تمدید', 'purple'],
+      queued: ['در صف', 'info'], running: ['در حال اجرا', 'info'], done: ['انجام‌شده', 'good'],
+      delivered: ['ارسال‌شده', 'good'], retrying: ['تلاش مجدد', 'purple'],
+    };
+
+    function apiKey() { return sessionStorage.getItem('wg_api_key') || ''; }
+    function esc(value = '') { return String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
+    function num(value) { return Number(value || 0).toLocaleString('en-US'); }
+    function date(value, withTime = false) {
+      if (!value) return '—';
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleString('fa-IR-u-nu-latn', withTime ? { dateStyle: 'short', timeStyle: 'short' } : { dateStyle: 'medium' });
+    }
+    function bytes(value) {
+      let amount = Number(value) || 0, unit = 0;
+      const names = ['B', 'KB', 'MB', 'GB', 'TB'];
+      while (amount >= 1024 && unit < names.length - 1) { amount /= 1024; unit++; }
+      return `${new Intl.NumberFormat('en-US', { maximumFractionDigits: unit ? 1 : 0 }).format(amount)} ${names[unit]}`;
+    }
+    function money(amount, currency = 'IRR') {
+      const value = num(amount);
+      return `${value} ${esc(currency)}`;
+    }
+    function status(value, fallback = '') {
+      const item = STATUS[value] || [fallback || value || 'نامشخص', ''];
+      return `<span class="status ${item[1]}">${esc(item[0])}</span>`;
+    }
+    function toast(message, isError = false) {
+      const item = document.createElement('div');
+      item.className = `toast${isError ? ' error' : ''}`;
+      item.textContent = message;
+      $('#toast-stack').append(item);
+      setTimeout(() => item.remove(), 4300);
+    }
+    class ApiError extends Error {
+      constructor(message, { code = '', statusCode = 0, requestId = '' } = {}) {
+        super(message); this.code = code; this.statusCode = statusCode; this.requestId = requestId;
+      }
+    }
+    async function api(path, options = {}) {
+      const headers = { ...(options.headers || {}) };
+      if (apiKey()) headers['X-API-Key'] = apiKey();
+      if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+      let response;
+      try { response = await fetch(`/api/v1${path}`, { ...options, headers, signal: options.signal || AbortSignal.timeout(25000) }); }
+      catch (error) { throw new ApiError(error.name === 'TimeoutError' ? 'زمان پاسخ API تمام شد' : 'ارتباط با API برقرار نشد', { code: 'NETWORK_ERROR' }); }
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body.success === false) {
+        const detail = body.error || body.detail || {};
+        const error = new ApiError(detail.message || `خطای درخواست (${response.status})`, {
+          code: detail.code || '', statusCode: response.status, requestId: body.request_id || response.headers.get('X-Request-ID') || '',
+        });
+        if (response.status === 401 && apiKey()) {
+          sessionStorage.removeItem('wg_api_key');
+          setConnection(false, 'کلید نامعتبر یا منقضی');
+        }
+        throw error;
+      }
       return body.data;
     }
-    function esc(value='') { return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-    function formatBytes(value) { let amount=Number(value)||0, unit=0; const names=['B','KB','MB','GB','TB']; while(amount>=1024&&unit<names.length-1){amount/=1024;unit++} return `${amount.toFixed(unit?1:0)} ${names[unit]}`; }
-    function peerStatus(value) { return ({active:'فعال',provisioning:'در حال ساخت',recreating:'در حال بازسازی',revoking:'در حال لغو',revoked:'لغوشده',failed:'ناموفق'})[value]||value; }
-    function openDialog(title, fields, submitLabel, onSubmit) {
-      const root=$('#dialog-root'); root.innerHTML=`<div class="overlay" role="presentation"><form class="dialog" role="dialog" aria-modal="true"><div class="dialog-head"><b>${esc(title)}</b><button type="button" class="icon-btn close" aria-label="بستن">×</button></div><div class="dialog-body">${fields}</div><div class="dialog-foot"><button class="primary" type="submit">${esc(submitLabel)}</button><button type="button" class="secondary close">انصراف</button></div></form></div>`;
-      root.querySelectorAll('.close').forEach(b=>b.onclick=()=>root.replaceChildren()); root.querySelector('.overlay').onclick=e=>{if(e.target===e.currentTarget)root.replaceChildren()};
-      root.querySelector('form').onsubmit=async e=>{e.preventDefault(); const values=Object.fromEntries(new FormData(e.currentTarget)); try{await onSubmit(values);root.replaceChildren();await load();}catch(err){toast(err.message,true)}};
-      root.querySelector('input')?.focus();
-    }
-    function render() {
-      $('#node-count').textContent=nodes.length; $('#online-count').textContent=nodes.filter(n=>n.healthy&&n.active).length; $('#interface-count').textContent=interfaces.length;
-      $('#peer-count').textContent=peerSummary?Number(peerSummary.active).toLocaleString('fa-IR'):'-'; $('#peer-usage').textContent=peerSummary?formatBytes(peerSummary.used_bytes):'-';
-      const countrySelect=$('#peer-country'), selectedCountry=countrySelect.value;
-      countrySelect.innerHTML='<option value="">همه موقعیت‌ها</option>'+[...new Set(interfaces.map(i=>i.country).filter(Boolean))].sort().map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
-      countrySelect.value=selectedCountry;
-      $('#nodes-body').innerHTML=nodes.map(n=>{const count=interfaces.filter(i=>i.node_id===n.id).length;return `<tr><td><b>${esc(n.name)}</b><div class="section-desc" dir="ltr">${esc(n.id)}</div></td><td>${esc(n.country)}</td><td><span class="badge ${n.healthy&&n.active?'online':''}"><span class="dot"></span>${!n.active?'Disabled':n.healthy?'Online':'Offline'}</span></td><td>${count}</td><td>${n.last_seen_at?new Date(n.last_seen_at).toLocaleString('fa-IR'):'-'}</td><td><button class="text-btn test-node" data-id="${esc(n.id)}">تست اتصال</button><button class="text-btn toggle-node" data-id="${esc(n.id)}" data-active="${n.active}">${n.active?'غیرفعال‌سازی':'فعال‌سازی'}</button></td></tr>`}).join('');
-      $('#nodes-empty').classList.toggle('hidden',nodes.length>0);
-      $('#interfaces-body').innerHTML=interfaces.map(i=>{const n=nodes.find(x=>x.id===i.node_id);return `<tr><td><b>${esc(i.name)}</b><div class="section-desc" dir="ltr">${esc(i.interface_name)}</div></td><td>${esc(n?.name||'Local')}</td><td>${esc(i.country)}</td><td dir="ltr">${esc(i.endpoint)}</td><td dir="ltr">${esc(i.address_pool)}</td><td><span class="badge ${i.healthy&&i.active?'online':''}"><span class="dot"></span>${!i.active?'Disabled':i.healthy?'Online':'Offline'}</span> <button class="text-btn toggle-interface" data-id="${esc(i.id)}" data-active="${i.active}">${i.active?'غیرفعال‌سازی':'فعال‌سازی'}</button></td></tr>`}).join('');
-      $('#interfaces-empty').classList.toggle('hidden',interfaces.length>0);
-      document.querySelectorAll('.test-node').forEach(b=>b.onclick=async()=>{b.disabled=true;try{const result=await api(`/nodes/${encodeURIComponent(b.dataset.id)}/test-connection`,{method:'POST'});toast(result.healthy?'اتصال Node موفق بود':'Node پاسخ‌گو نیست',!result.healthy);await load()}catch(e){toast(e.message,true)}finally{b.disabled=false}});
-      document.querySelectorAll('.toggle-node').forEach(b=>b.onclick=async()=>{try{await api(`/nodes/${encodeURIComponent(b.dataset.id)}`,{method:'PATCH',body:JSON.stringify({active:b.dataset.active!=='true'})});toast('وضعیت Node تغییر کرد');await load()}catch(e){toast(e.message,true)}});
-      document.querySelectorAll('.toggle-interface').forEach(b=>b.onclick=async()=>{try{await api(`/servers/${encodeURIComponent(b.dataset.id)}`,{method:'PATCH',body:JSON.stringify({active:b.dataset.active!=='true'})});toast('وضعیت Interface تغییر کرد');await load()}catch(e){toast(e.message,true)}});
-    }
-    function renderPeers() {
-      $('#peers-access-notice').classList.toggle('hidden',peerAccess);
-      $('#peer-filters').classList.toggle('hidden',!peerAccess); $('.pagination').classList.toggle('hidden',!peerAccess);
-      $('#peers-loading').classList.add('hidden');
-      $('#peers-body').innerHTML=peers.map(p=>{
-        const busy=['provisioning','recreating','revoking'].includes(p.status);
-        const actions=[];
-        if(p.status==='active') actions.push(`<button class="text-btn peer-config" data-id="${esc(p.id)}">دانلود</button>`,`<button class="text-btn peer-qr" data-id="${esc(p.id)}">QR</button>`);
-        if(p.subscription_status==='active'&&['active','revoked'].includes(p.status)) actions.push(`<button class="text-btn peer-add" data-sub="${esc(p.subscription_id)}" data-country="${esc(p.country)}">افزودن دستگاه</button>`);
-        if(!busy) actions.push(`<button class="text-btn peer-recreate" data-id="${esc(p.id)}">بازسازی</button>`);
-        if(!['revoked','revoking'].includes(p.status)) actions.push(`<button class="text-btn peer-revoke" data-id="${esc(p.id)}">لغو</button>`);
-        return `<tr><td><b>${esc(p.external_user_id||p.user_id)}</b><div class="section-desc mono">${esc(p.id)}</div></td><td class="mono">${esc(p.client_ip)}</td><td>${esc(p.server_name)} · ${esc(p.country)}</td><td><span class="badge ${p.status==='active'?'online':''}"><span class="dot"></span>${esc(peerStatus(p.status))}</span></td><td><span dir="ltr">↓ ${formatBytes(p.rx_bytes)} / ↑ ${formatBytes(p.tx_bytes)}</span></td><td>${p.created_at?new Date(p.created_at).toLocaleDateString('fa-IR'):'-'}</td><td><div class="peer-actions">${actions.join('')}</div></td></tr>`;
-      }).join('');
-      $('#peers-empty').classList.toggle('hidden',!peerAccess||peers.length>0);
-      const start=peerTotal?peerOffset+1:0, end=Math.min(peerOffset+peers.length,peerTotal);
-      $('#peers-range').textContent=`${start} تا ${end} از ${Number(peerTotal).toLocaleString('fa-IR')} مورد`;
-      $('#peers-prev').disabled=peerOffset<=0; $('#peers-next').disabled=peerOffset+peerLimit>=peerTotal;
-      $('#peers-body').onclick=async event=>{
-        const button=event.target.closest('button[data-id]'); if(!button)return;
-        const id=button.dataset.id; button.disabled=true;
-        try {
-          if(button.classList.contains('peer-config')) await downloadPeerConfig(id);
-          else if(button.classList.contains('peer-qr')) await showPeerQr(id);
-          else if(button.classList.contains('peer-add')) {
-            if(!window.confirm(`یک دستگاه جدید برای این کاربر در موقعیت ${button.dataset.country} ساخته شود؟`))return;
-            await api(`/subscriptions/${encodeURIComponent(button.dataset.sub)}/peers`,{method:'POST',body:JSON.stringify({country:button.dataset.country})});
-            toast('درخواست ساخت دستگاه ثبت شد'); peerOffset=0; await loadPeers();
-          }
-          else if(button.classList.contains('peer-revoke')) {
-            if(!window.confirm('این اتصال لغو شود؟ پس از اجرای فرمان روی Node، کاربر دیگر نمی‌تواند از آن استفاده کند.'))return;
-            await api(`/peers/${encodeURIComponent(id)}/revoke`,{method:'POST'}); toast('درخواست لغو ثبت شد'); await loadPeers();
-          } else if(button.classList.contains('peer-recreate')) {
-            if(!window.confirm('کلید و فایل اتصال این Peer بازسازی شود؟ فایل قبلی دیگر کار نخواهد کرد.'))return;
-            await api(`/peers/${encodeURIComponent(id)}/recreate`,{method:'POST'}); toast('درخواست بازسازی ثبت شد'); await loadPeers();
-          }
-        } catch(error) { toast(error.message,true); }
-        finally { button.disabled=false; }
-      };
-    }
-    async function loadPeers() {
-      if(!key())return;
-      $('#peers-loading').classList.remove('hidden'); $('#peers-empty').classList.add('hidden');
-      const params=new URLSearchParams({offset:String(peerOffset),limit:String(peerLimit),q:$('#peer-query').value.trim(),status:$('#peer-status').value,country:$('#peer-country').value});
-      try {
-        const data=await api(`/peers?${params}`); peers=data.items||[]; peerTotal=data.total||0; peerSummary=data.summary||null; peerAccess=true;
-      } catch(error) {
-        if(error.code==='INSUFFICIENT_SCOPE'){peerAccess=false;peers=[];peerTotal=0;peerSummary=null;}
-        else { $('#peers-loading').classList.add('hidden'); throw error; }
+    async function binary(path) {
+      let response;
+      try { response = await fetch(`/api/v1${path}`, { headers: { 'X-API-Key': apiKey() }, signal: AbortSignal.timeout(25000) }); }
+      catch { throw new ApiError('دریافت فایل از API ناموفق بود', { code: 'NETWORK_ERROR' }); }
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        const detail = body.error || {};
+        throw new ApiError(detail.message || `خطای دریافت فایل (${response.status})`, { code: detail.code || '', statusCode: response.status, requestId: body.request_id || '' });
       }
-      render(); renderPeers();
-    }
-    async function peerFile(path) {
-      const response=await fetch('/api/v1'+path,{headers:{'X-API-Key':key()}});
-      if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body.error?.message||`خطای ${response.status}`)}
       return response.blob();
     }
-    async function downloadPeerConfig(id) {
-      const blob=await peerFile(`/peers/${encodeURIComponent(id)}/config`), url=URL.createObjectURL(blob), link=document.createElement('a');
-      link.href=url; link.download=`${id}.conf`; document.body.append(link); link.click(); link.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+    function setConnection(connected, message) {
+      $('#connection-dot').classList.toggle('online', connected);
+      $('#connection-label').textContent = message || (connected ? 'متصل به API مرکزی' : 'اتصال برقرار نیست');
     }
-    async function showPeerQr(id) {
-      const blob=await peerFile(`/peers/${encodeURIComponent(id)}/qr`), url=URL.createObjectURL(blob), root=$('#dialog-root');
-      root.innerHTML=`<div class="overlay"><section class="dialog" role="dialog" aria-modal="true"><div class="dialog-head"><b>QR اتصال WireGuard</b><button class="icon-btn close-qr" aria-label="بستن">×</button></div><div class="dialog-body"><p class="hint">این QR شامل اطلاعات محرمانه‌ی اتصال است؛ آن را فقط با کاربر همین Peer به‌اشتراک بگذارید.</p><img class="qr-image" alt="QR اتصال WireGuard"></div></section></div>`;
-      root.querySelector('img').src=url;
-      const close=()=>{root.replaceChildren();URL.revokeObjectURL(url)};
-      root.querySelector('.close-qr').onclick=close; root.querySelector('.overlay').onclick=e=>{if(e.target===e.currentTarget)close()};
+    function saveIssuedKeys() { sessionStorage.setItem('wg_issued_key_refs', JSON.stringify(state.issuedKeys.slice(0, 12))); }
+    function errorNotice(resource, needed) {
+      const error = state.errors[resource];
+      if (!error) return '';
+      if (error.code === 'INSUFFICIENT_SCOPE') return `<div class="notice">این کلید به دسترسی <code dir="ltr">${esc(needed)}</code> نیاز دارد. با کلید دارای scope لازم دوباره وارد شوید.</div>`;
+      return `<div class="notice error">دریافت اطلاعات با خطا روبه‌رو شد: ${esc(error.message)}${error.requestId ? ` · شناسه پیگیری <code dir="ltr">${esc(error.requestId)}</code>` : ''}</div>`;
     }
-    async function load() {
-      if(!key()){showKeyDialog();return}
-      try { [nodes,interfaces]=await Promise.all([api('/nodes'),api('/servers?include_disabled=true')]); render(); await loadPeers(); }
-      catch(e){ if(e.code==='AUTH_REQUIRED'||e.code==='INVALID_API_KEY'){sessionStorage.removeItem('wg_api_key');showKeyDialog();return} toast(e.message,true); }
+    async function loadResource(name, path, fallback) {
+      try { const result = await api(path); state[name] = result; delete state.errors[name]; return result; }
+      catch (error) { state.errors[name] = error; return fallback; }
     }
-    function showKeyDialog() {
-      openDialog('اتصال به API',`<p class="hint">کلید پنل به scopeهای <span dir="ltr">servers:read, servers:write, peers:read, peers:write</span> نیاز دارد. کلید فقط در session همین مرورگر نگه‌داری می‌شود.</p><div class="field"><label for="api-key">X-API-Key</label><input id="api-key" name="api_key" type="password" autocomplete="off" required></div>`,'اتصال',async v=>{sessionStorage.setItem('wg_api_key',v.api_key.trim()); await load();});
+    async function refreshAll() {
+      if (!apiKey()) { renderLogin(); return; }
+      state.busy = true;
+      $('#refresh-button').classList.add('spin');
+      const jobs = [
+        loadResource('nodes', '/nodes', []),
+        loadResource('servers', '/servers?include_disabled=true', []),
+        loadResource('plans', '/plans', []),
+        loadResource('orders', '/orders?offset=0&limit=100', []),
+        loadResource('subscriptions', '/subscriptions?offset=0&limit=100', []),
+        loadResource('webhooks', '/webhooks', []),
+        (async () => {
+          try {
+            const result = await api('/peers?offset=0&limit=1');
+            state.peerSummary = result.summary || null; delete state.errors.peers; return result;
+          } catch (error) { state.errors.peers = error; state.peerSummary = null; return null; }
+        })(),
+      ];
+      await Promise.all(jobs);
+      state.ordersOffset = 0; state.ordersHasNext = state.orders.length === 100;
+      state.subscriptionsOffset = 0; state.subscriptionsHasNext = state.subscriptions.length === 100;
+      state.lastUpdated = new Date(); state.busy = false;
+      const authError = Object.values(state.errors).some(error => error.statusCode === 401);
+      const networkError = Object.values(state.errors).some(error => error.code === 'NETWORK_ERROR');
+      setConnection(!authError && !networkError, authError ? 'کلید نیازمند بررسی است' : networkError ? 'اختلال در ارتباط' : 'متصل به API مرکزی');
+      $('#updated-at').textContent = `آخرین به‌روزرسانی ${state.lastUpdated.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}`;
+      renderView();
+      $('#refresh-button').classList.remove('spin');
     }
-    function showNodeSetup(){openDialog('ساخت Node جدید',`<div class="grid"><div class="field"><label>نام Node</label><input name="name" required maxlength="120" placeholder="Germany-1"></div><div class="field"><label>کد کشور</label><input name="country" required minlength="2" maxlength="2" placeholder="DE"></div></div><p class="hint">بعد از ثبت، شناسه و کلید اختصاصی این Node نمایش داده می‌شود. آن‌ها را برای نصب روی VPS نگه دارید.</p>`,'ساخت اطلاعات نصب',async v=>{const result=await api('/nodes/setup',{method:'POST',body:JSON.stringify({name:v.name.trim(),country:v.country.trim().toUpperCase()})});toast('اطلاعات Node ساخته شد');setTimeout(()=>showNodeSetupResult(result),0)})}
-    function showNodeSetupResult(result){
-      const root=$('#dialog-root'), command=`curl -fsSL ${location.origin}/install/node.sh -o /tmp/wg-node-install.sh && if [ "$(id -u)" -eq 0 ]; then bash /tmp/wg-node-install.sh; else sudo bash /tmp/wg-node-install.sh; fi`;
-      root.innerHTML=`<div class="overlay"><section class="dialog" role="dialog" aria-modal="true"><div class="dialog-head"><b>Node آماده نصب است</b><button class="icon-btn close-setup" aria-label="بستن">×</button></div><div class="dialog-body"><p class="hint">این کلید مخصوص همین Node است و فقط یک بار نمایش داده می‌شود. آن را امن نگه دارید؛ کلید روی VPS ذخیره می‌شود تا Node بتواند به پنل وصل شود.</p><div class="field"><label>NODE_ID</label><input readonly dir="ltr" value="${esc(result.node_id)}"></div><button class="secondary copy-node-id">کپی شناسه</button><div class="field" style="margin-top:12px"><label>SERVER_API_KEY</label><input id="node-api-key" readonly dir="ltr" value="${esc(result.node_api_key)}"></div><button class="secondary copy-node-key">کپی کلید</button><div class="field" style="margin-top:14px"><label>فرمان نصب روی Node</label><input readonly dir="ltr" value="${esc(command)}"></div><button class="secondary copy-node-command">کپی فرمان</button><p class="hint" style="margin-top:14px">فرمان را روی VPS اجرا کنید و URL پنل، IP عمومی و پورت WireGuard را وارد کنید. Node پس از اتصال، Interface را خودکار در پنل ثبت می‌کند. فقط UDP پورت WireGuard ورودی لازم است؛ اتصال مدیریتی Node به پنل از خروجی HTTPS انجام می‌شود.</p><button class="primary close-setup">تمام</button></div></section></div>`;
-      root.querySelectorAll('.close-setup').forEach(button=>button.onclick=()=>root.replaceChildren());
-      root.querySelector('.copy-node-id').onclick=()=>navigator.clipboard.writeText(result.node_id).then(()=>toast('شناسه کپی شد')).catch(()=>toast('کپی خودکار انجام نشد',true));
-      root.querySelector('.copy-node-key').onclick=()=>navigator.clipboard.writeText(result.node_api_key).then(()=>toast('کلید کپی شد')).catch(()=>toast('کپی خودکار انجام نشد',true));
-      root.querySelector('.copy-node-command').onclick=()=>navigator.clipboard.writeText(command).then(()=>toast('فرمان نصب کپی شد')).catch(()=>toast('کپی خودکار انجام نشد',true));
+    function openModal(title, body, { submit = 'ذخیره', wide = false, onSubmit = null, hideSubmit = false } = {}) {
+      const root = $('#modal-root');
+      root.innerHTML = `<div class="overlay" data-overlay><form class="dialog${wide ? ' wide' : ''}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="dialog-head"><strong>${esc(title)}</strong><button type="button" class="dialog-close" data-close aria-label="بستن">×</button></div><div class="dialog-body">${body}</div>${hideSubmit ? '' : `<div class="dialog-foot"><button class="primary-button" type="submit">${esc(submit)}</button><button class="outline-button" type="button" data-close>انصراف</button></div>`}</form></div>`;
+      root.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', closeModal));
+      root.querySelector('[data-overlay]').addEventListener('click', event => { if (event.target === event.currentTarget) closeModal(); });
+      if (onSubmit) root.querySelector('form').addEventListener('submit', async event => {
+        event.preventDefault();
+        const form = event.currentTarget, submitButton = form.querySelector('[type="submit"]');
+        submitButton.disabled = true; submitButton.textContent = 'در حال انجام…';
+        try {
+          const values = new FormData(form);
+          const result = await onSubmit(values, form);
+          if (result?.keepOpen) return;
+          closeModal();
+          await refreshAll();
+          toast(result?.message || 'تغییرات ذخیره شد');
+        } catch (error) { toast(error.message, true); if (submitButton.isConnected) { submitButton.disabled = false; submitButton.textContent = submit; } }
+      });
+      root.querySelector('input:not([type="hidden"]), select, textarea')?.focus();
     }
-    function showInterfaceDialog(){if(!nodes.length){toast('ابتدا یک Node ثبت کنید',true);return} const options=nodes.map(n=>`<option value="${esc(n.id)}">${esc(n.name)} · ${esc(n.country)}</option>`).join('');openDialog('ثبت Interface',`<div class="grid"><div class="field"><label>Node</label><select name="node_id">${options}</select></div><div class="field"><label>نام نمایشی</label><input name="name" required maxlength="120" placeholder="Germany 1"></div></div><div class="grid"><div class="field"><label>نام سیستم Interface</label><input name="interface_name" required value="wg0" maxlength="15" pattern="[a-zA-Z0-9_=+.@-]{1,15}"></div><div class="field"><label>کشور</label><input name="country" required value="${esc(nodes[0].country)}" minlength="2" maxlength="2"></div></div><div class="grid"><div class="field"><label>Endpoint عمومی</label><input name="endpoint" required placeholder="vpn.example.com:51820"></div><div class="field"><label>کلید عمومی سرور</label><input name="public_key" required minlength="10" maxlength="64"></div></div><div class="grid"><div class="field"><label>Pool آدرس</label><input name="address_pool" required placeholder="10.50.0.0/24"></div><div class="field"><label>DNS</label><input name="dns" value="1.1.1.1"></div></div><p class="hint">Agent همان Node را به‌کار می‌گیرد. Interface باید از قبل روی میزبان ایجاد و فعال شده باشد.</p>`,'ثبت Interface',async v=>{await api('/servers',{method:'POST',body:JSON.stringify({...v,agent_url:'',agent_secret:'',country:v.country.trim().toUpperCase()})});toast('Interface ثبت شد')})}
-    document.querySelectorAll('.nav-item').forEach(b=>b.onclick=()=>{
-      document.querySelectorAll('.nav-item').forEach(x=>x.classList.toggle('active',x===b));
-      const view=b.dataset.view; $('#page-title').textContent=titles[view][0]; $('#page-sub').textContent=titles[view][1];
-      $('#nodes-section').classList.toggle('hidden',view==='interfaces'||view==='clients');
-      $('#interfaces-section').classList.toggle('hidden',view==='nodes'||view==='clients');
-      $('#clients-section').classList.toggle('hidden',view!=='clients');
-      if(view==='clients')loadPeers().catch(error=>toast(error.message,true));
+    function closeModal() { $('#modal-root').replaceChildren(); }
+    function copyText(value, message = 'کپی شد') {
+      navigator.clipboard?.writeText(value).then(() => toast(message)).catch(() => toast('مرورگر اجازه کپی خودکار نداد', true));
+    }
+    function escapePath(value) { return encodeURIComponent(String(value)); }
+    function empty(title, detail = '') { return `<div class="empty-state"><strong>${esc(title)}</strong>${esc(detail)}</div>`; }
+    function table(headers, rows, className = '') {
+      if (!rows.length) return `<div class="table-scroll"><div class="empty-state">موردی برای نمایش وجود ندارد.</div></div>`;
+      return `<div class="table-scroll"><table class="${className}"><thead><tr>${headers.map(item => `<th>${item}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+    }
+    function pageToolbar(title, description, actions = '') {
+      return `<div class="page-toolbar"><div><h2>${title}</h2><p>${description}</p></div><div class="toolbar-actions">${actions}</div></div>`;
+    }
+    function stat(label, value, note, color) {
+      return `<div class="stat" style="--stat-color:${color}"><span class="stat-label">${label}</span><strong class="stat-value">${value}</strong><span class="stat-note">${note}</span></div>`;
+    }
+    function actionButton(action, id, label, danger = false, extra = '') {
+      return `<button class="quiet-button${danger ? ' danger' : ''}" data-action="${action}" data-id="${esc(id)}" ${extra}>${label}</button>`;
+    }
+    function renderView() {
+      const [title, subtitle] = PAGE[state.view];
+      $('#page-title').textContent = title; $('#page-subtitle').textContent = subtitle;
+      $$('.nav-item').forEach(button => button.classList.toggle('active', button.dataset.view === state.view));
+      $('#sidebar').classList.remove('open');
+      if (!apiKey()) { renderLogin(); return; }
+      const renderers = {
+        overview: renderOverview, plans: renderPlans, users: renderUsers, orders: renderOrders,
+        subscriptions: renderSubscriptions, nodes: renderNodes, interfaces: renderInterfaces,
+        peers: renderPeers, webhooks: renderWebhooks, keys: renderKeys, audit: renderAudit,
+      };
+      renderers[state.view]();
+    }
+
+    function renderLogin() {
+      setConnection(false, 'نیازمند کلید API');
+      $('#view').innerHTML = `<section class="surface surface-pad" style="max-width:560px;margin:8vh auto 0"><div class="section-heading"><div><h2>اتصال امن به پنل</h2><p>کلید API مدیریتی را وارد کنید تا اطلاعات همین Tenant بارگذاری شود.</p></div></div><div class="notice info">کلید در session همین مرورگر نگه‌داری می‌شود و با بستن تب پاک خواهد شد. آن را در اختیار افراد غیرمجاز نگذارید.</div><form id="login-form"><div class="field"><label for="login-key">X-API-Key</label><input id="login-key" name="key" type="password" dir="ltr" autocomplete="off" required></div><button class="primary-button" type="submit">اتصال به سرویس</button></form></section>`;
+      $('#login-form').addEventListener('submit', async event => {
+        event.preventDefault(); sessionStorage.setItem('wg_api_key', new FormData(event.currentTarget).get('key').trim());
+        await refreshAll();
+      });
+    }
+
+    function renderOverview() {
+      const summary = state.peerSummary || {};
+      const online = state.nodes.filter(node => node.active && node.healthy).length;
+      const activeSubs = state.subscriptions.filter(item => item.status === 'active').length;
+      const activePlans = state.plans.filter(item => item.active).length;
+      const recentOrders = [...state.orders].slice(0, 6);
+      const lastSeven = Array.from({ length: 7 }, (_, index) => {
+        const d = new Date(); d.setDate(d.getDate() - (6 - index));
+        const key = d.toISOString().slice(0, 10);
+        const count = state.orders.filter(order => String(order.created_at || '').slice(0, 10) === key).length;
+        return { label: d.toLocaleDateString('fa-IR', { weekday: 'short' }), count };
+      });
+      const maxOrders = Math.max(1, ...lastSeven.map(item => item.count));
+      const recentRows = recentOrders.map(order => `<tr><td><span class="table-primary mono">${esc(order.id)}</span><span class="table-secondary">${date(order.created_at, true)}</span></td><td class="mono">${esc(order.user_id)}</td><td>${money(order.price_minor, order.currency)}</td><td>${status(order.status)}</td><td>${actionButton('open-order', order.id, 'جزئیات')}</td></tr>`);
+      const nodeRows = state.nodes.slice(0, 6).map(node => `<div class="node-row"><div class="node-meta"><strong>${esc(node.name)} <span class="table-secondary" style="display:inline">· ${esc(node.country)}</span></strong><span>${node.last_seen_at ? `آخرین اتصال ${date(node.last_seen_at, true)}` : 'هنوز اتصال ثبت نشده'}</span></div>${status(!node.active ? 'disabled' : node.healthy ? 'online' : 'failed') }</div>`);
+      $('#view').innerHTML = `
+        <div class="stats-grid">
+          ${stat('Node آنلاین', `${num(online)} <small style="font-size:12px;color:var(--muted)">/ ${num(state.nodes.length)}</small>`, 'ماشین‌های متصل و فعال', '#19846b')}
+          ${stat('Peer فعال', num(summary.active), 'اتصال‌های فعال کاربران', '#4079a0')}
+          ${stat('اشتراک فعال', num(activeSubs), 'در بین ۱۰۰ مورد اخیر', '#8c69aa')}
+          ${stat('طرح فروش', num(activePlans), 'طرح‌های قابل خرید', '#d18b38')}
+          ${stat('مصرف کل Peerها', bytes(summary.used_bytes), 'دریافت + ارسال', '#bd6260')}
+        </div>
+        ${errorNotice('nodes', 'servers:read')}${errorNotice('peers', 'peers:read')}
+        <div class="dashboard-grid">
+          <div>
+            <section class="panel-section flush"><div class="section-heading"><div><h2>سفارش‌های اخیر</h2><p>آخرین خریدها و وضعیت پرداخت</p></div><button class="section-link" data-go="orders">همه سفارش‌ها ←</button></div>${table(['شناسه سفارش', 'شناسه کاربر', 'مبلغ', 'وضعیت', ''], recentRows)}</section>
+            <section class="panel-section"><div class="section-heading"><div><h2>فعالیت سفارش‌ها</h2><p>تعداد سفارش‌های ثبت‌شده در هفت روز گذشته از داده‌های دریافت‌شده</p></div></div><div class="surface surface-pad"><div class="bar-list">${lastSeven.map((item, index) => `<div class="bar-row"><span>${item.label}</span><div class="bar-track"><div class="bar-fill" style="--bar-color:${index > 4 ? '#468f75' : '#75b89a'};width:${Math.max(item.count ? 7 : 1, item.count / maxOrders * 100)}%"></div></div><b>${num(item.count)}</b></div>`).join('')}</div></div></section>
+          </div>
+          <div>
+            <section class="panel-section flush"><div class="section-heading"><div><h2>سلامت Nodeها</h2><p>وضعیت آخرین heartbeat دریافت‌شده</p></div><button class="section-link" data-go="nodes">مدیریت Nodeها ←</button></div><div class="surface surface-pad"><div class="node-list">${nodeRows.length ? nodeRows.join('') : empty('Nodeی ثبت نشده', 'از بخش Nodeها اولین سرور را اضافه کنید.')}</div></div></section>
+            <section class="panel-section"><div class="section-heading"><div><h2>دسترسی‌های پنل</h2><p>وضعیت داده‌های قابل مشاهده برای کلید فعلی</p></div></div><div class="surface surface-pad">${[['Nodeها', 'nodes'], ['طرح‌ها', 'plans'], ['سفارش‌ها', 'orders'], ['اشتراک‌ها', 'subscriptions'], ['Peerها', 'peers']].map(([label, name]) => `<div class="node-row"><div class="node-meta"><strong>${label}</strong><span>${state.errors[name]?.code === 'INSUFFICIENT_SCOPE' ? 'scope لازم موجود نیست' : state.errors[name] ? 'دریافت ناموفق' : 'دسترسی برقرار'}</span></div>${status(state.errors[name] ? 'failed' : 'active')}</div>`).join('')}</div></section>
+          </div>
+        </div>`;
+    }
+
+    function renderPlans() {
+      const rows = state.plans.map(plan => `<tr><td><span class="table-primary">${esc(plan.name)}</span><span class="table-secondary">${esc(plan.description || 'بدون توضیحات')}</span></td><td>${bytes(plan.traffic_limit_bytes)}</td><td>${num(plan.duration_days)} روز</td><td>${num(plan.peer_limit)} دستگاه</td><td>${money(plan.price_minor, plan.currency)}</td><td>${(plan.server_countries || []).map(country => `<span class="status info">${esc(country)}</span>`).join(' ') || 'همه موقعیت‌ها'}</td><td>${status(plan.active ? 'active' : 'disabled')}</td><td><div class="actions-cell">${actionButton('edit-plan', plan.id, 'ویرایش')}${actionButton('disable-plan', plan.id, 'غیرفعال', true)}</div></td></tr>`);
+      $('#view').innerHTML = `${pageToolbar('طرح‌های فروش', 'قیمت و مشخصات طرح‌هایی که API فروشگاه می‌تواند نمایش دهد.', '<button class="primary-button" data-action="new-plan">＋ طرح جدید</button>')}${errorNotice('plans', 'plans:read / plans:write')}<div class="notice info">API فعلی فقط طرح‌های فعال را در فهرست برمی‌گرداند؛ پس از غیرفعال‌سازی، طرح از فهرست این صفحه خارج می‌شود.</div>${table(['نام طرح', 'حجم', 'مدت', 'دستگاه', 'قیمت', 'موقعیت', 'وضعیت', 'عملیات'], rows)}`;
+    }
+    function planForm(plan = null) {
+      const countries = (plan?.server_countries || []).join(', ');
+      const fields = `<div class="grid-2"><div class="field"><label>نام طرح</label><input name="name" required maxlength="120" value="${esc(plan?.name || '')}" placeholder="یک ماهه ۱۰۰ گیگ"></div><div class="field"><label>قیمت در کوچک‌ترین واحد پول</label><input name="price_minor" type="number" min="0" step="1" required value="${esc(plan?.price_minor ?? 0)}"></div><div class="field"><label>حجم (GiB)</label><input name="traffic_gib" type="number" min="0.01" step="0.01" required value="${plan ? (plan.traffic_limit_bytes / 1073741824).toFixed(2) : '100'}"></div><div class="field"><label>مدت (روز)</label><input name="duration_days" type="number" min="1" max="3650" step="1" required value="${esc(plan?.duration_days ?? 30)}"></div><div class="field"><label>حداکثر دستگاه</label><input name="peer_limit" type="number" min="1" max="100" step="1" required value="${esc(plan?.peer_limit ?? 1)}"></div><div class="field"><label>واحد پول</label><input name="currency" required minlength="3" maxlength="3" value="${esc(plan?.currency || 'IRR')}" class="ltr-input"></div></div><div class="field"><label>توضیحات</label><textarea name="description" maxlength="500">${esc(plan?.description || '')}</textarea></div><div class="field"><label>کد کشورهای مجاز</label><input name="server_countries" class="ltr-input" value="${esc(countries)}" placeholder="DE, TR, US"><div class="field-help">کد دوحرفی کشورها را با کاما جدا کنید؛ خالی یعنی انتخاب از همه موقعیت‌های فعال.</div></div>`;
+      openModal(plan ? 'ویرایش طرح' : 'ساخت طرح فروش', fields, {
+        submit: plan ? 'ذخیره تغییرات' : 'ساخت طرح',
+        onSubmit: async values => {
+          const payload = {
+            name: values.get('name').trim(), description: values.get('description').trim(),
+            traffic_limit_bytes: Math.round(Number(values.get('traffic_gib')) * 1073741824),
+            duration_days: Number(values.get('duration_days')), peer_limit: Number(values.get('peer_limit')),
+            price_minor: Number(values.get('price_minor')), currency: values.get('currency').trim().toUpperCase(),
+            server_countries: values.get('server_countries').split(',').map(item => item.trim().toUpperCase()).filter(Boolean),
+          };
+          await api(plan ? `/plans/${escapePath(plan.id)}` : '/plans', { method: plan ? 'PATCH' : 'POST', body: JSON.stringify(payload) });
+          return { message: plan ? 'طرح به‌روزرسانی شد' : 'طرح ساخته شد' };
+        },
+      });
+    }
+
+    function knownUsers() {
+      const users = new Map();
+      state.orders.forEach(item => users.set(item.user_id, { id: item.user_id, external: '', created: item.created_at }));
+      state.subscriptions.forEach(item => users.set(item.user_id, { ...(users.get(item.user_id) || {}), id: item.user_id }));
+      state.peers.forEach(item => users.set(item.user_id, { id: item.user_id, external: item.external_user_id, created: item.created_at }));
+      return [...users.values()];
+    }
+    function renderUsers() {
+      const known = knownUsers();
+      const q = state.userQuery.trim().toLowerCase();
+      const visible = known.filter(user => [user.id, user.external].some(value => String(value || '').toLowerCase().includes(q))).slice(0, 60);
+      const rows = visible.map(user => `<tr><td><span class="table-primary">${esc(user.external || 'بدون شناسه خارجی')}</span><span class="table-secondary mono">${esc(user.id)}</span></td><td>${date(user.created)}</td><td>${user.id === state.userLookup?.id ? status(state.userLookup.status) : '<span class="table-secondary">شناسه استخراج‌شده از سفارش</span>'}</td><td>${actionButton('lookup-user', user.id, 'جزئیات')}</td></tr>`);
+      const lookup = state.userLookup ? `<div class="surface surface-pad" style="margin-top:14px"><div class="section-heading"><div><h3>پرونده کاربر</h3><p class="mono">${esc(state.userLookup.id)}</p></div>${status(state.userLookup.status)}</div><div class="grid-2"><div><span class="table-secondary">شناسه خارجی</span><strong>${esc(state.userLookup.external_id)}</strong></div><div><span class="table-secondary">تاریخ ایجاد</span><strong>${date(state.userLookup.created_at, true)}</strong></div></div><div class="toolbar"><button class="${state.userLookup.status === 'active' ? 'danger-button' : 'primary-button'}" data-action="toggle-user" data-id="${esc(state.userLookup.id)}" data-status="${esc(state.userLookup.status)}">${state.userLookup.status === 'active' ? 'غیرفعال‌سازی کاربر' : 'فعال‌سازی کاربر'}</button></div></div>` : '';
+      $('#view').innerHTML = `${pageToolbar('کاربران', 'حساب‌ها با شناسه خارجی فروشگاه شما به‌صورت idempotent ساخته می‌شوند.', '<button class="primary-button" data-action="new-user">＋ ساخت کاربر</button>')}${errorNotice('users', 'users:write / users:read')}<div class="dashboard-grid"><section class="panel-section flush"><div class="section-heading"><div><h2>کاربران شناخته‌شده</h2><p>از سفارش‌ها و Peerهای اخیر؛ برای دیدن وضعیت کامل، جزئیات را باز کنید.</p></div></div><form class="toolbar" id="user-filter"><div class="filter-search"><span class="search-symbol">⌕</span><input name="q" value="${esc(state.userQuery)}" placeholder="جست‌وجو با شناسه کاربر یا شناسه خارجی"></div><button class="outline-button">جست‌وجو</button></form>${table(['کاربر', 'تاریخ', 'وضعیت', ''], rows)}${lookup}</section><section class="panel-section flush"><div class="section-heading"><div><h2>ساخت / جست‌وجوی کاربر</h2><p>کاربر در هر Tenant با شناسه خارجی یکتا می‌شود.</p></div></div><div class="surface surface-pad"><form id="create-user-form"><div class="field"><label>شناسه خارجی کاربر جدید</label><input name="external_id" required maxlength="200" dir="ltr" placeholder="customer-1042"><div class="field-help">شناسه پایدار کاربر در فروشگاه شما، نه ایمیل یا رمز عبور.</div></div><button class="primary-button" type="submit">ساخت / بازیابی کاربر</button></form><hr style="border:0;border-top:1px solid var(--line);margin:17px 0"><form id="lookup-user-form"><div class="field"><label>جست‌وجوی دقیق با شناسه داخلی</label><input name="user_id" required dir="ltr" placeholder="usr_..."></div><button class="outline-button" type="submit">نمایش پرونده</button></form><div class="notice info" style="margin-bottom:0">API فعلی endpoint فهرست کامل کاربران ندارد؛ جدول از سفارش‌ها و Peerهای قابل مشاهده ساخته می‌شود. برای یافتن کاربر خارج از این فهرست، شناسه داخلی او را وارد کنید.</div></div></section></div>`;
+    }
+
+    function renderOrders() {
+      const query = ($('#order-query')?.value || '').toLowerCase();
+      const filter = $('#order-status-filter')?.value || '';
+      const list = state.orders.filter(order => (!filter || order.status === filter) && (!query || `${order.id} ${order.user_id} ${order.plan_id}`.toLowerCase().includes(query)));
+      const rows = list.map(order => {
+        const pending = order.status === 'pending_payment';
+        return `<tr><td><span class="table-primary mono">${esc(order.id)}</span><span class="table-secondary">${date(order.created_at, true)} · ${status(order.kind)}</span></td><td><span class="mono">${esc(order.user_id)}</span></td><td><span class="mono">${esc(order.plan_id)}</span></td><td>${money(order.price_minor, order.currency)}</td><td>${status(order.status)}</td><td><div class="actions-cell">${pending ? actionButton('confirm-payment', order.id, 'تأیید پرداخت') : ''}${actionButton('open-order', order.id, 'جزئیات')}</div></td></tr>`;
+      });
+      $('#view').innerHTML = `${pageToolbar('سفارش‌ها', 'مرور سفارش‌ها، ایجاد خرید و ثبت تأیید پرداخت پس از راستی‌آزمایی درگاه.', '<button class="primary-button" data-action="new-order">＋ سفارش جدید</button>')}${errorNotice('orders', 'orders:read / orders:create')}<div class="notice">تأیید پرداخت فقط پس از بررسی قطعی تراکنش، مبلغ و ارز در درگاه خودتان انجام شود. این عملیات خودش درگاه را استعلام نمی‌کند.</div><form class="toolbar" id="order-filter"><div class="filter-search"><span class="search-symbol">⌕</span><input id="order-query" name="q" value="${esc(query)}" placeholder="شناسه سفارش، کاربر یا طرح"></div><div class="field narrow"><label>وضعیت</label><select id="order-status-filter" name="status"><option value="">همه وضعیت‌ها</option>${['pending_payment', 'paid'].map(value => `<option value="${value}" ${filter === value ? 'selected' : ''}>${STATUS[value][0]}</option>`).join('')}</select></div><button class="outline-button">اعمال فیلتر</button><span class="table-secondary">${num(list.length)} مورد در این صفحه</span></form>${table(['سفارش', 'کاربر', 'طرح', 'مبلغ', 'وضعیت', 'عملیات'], rows)}<div class="pagination"><span>${num(state.ordersOffset + 1)} تا ${num(state.ordersOffset + state.orders.length)} مورد</span><div class="pagination-actions"><button class="outline-button" data-action="orders-prev" ${state.ordersOffset <= 0 ? 'disabled' : ''}>قبلی</button><button class="outline-button" data-action="orders-next" ${!state.ordersHasNext ? 'disabled' : ''}>بعدی</button></div></div>`;
+    }
+    function orderForm() {
+      const plans = state.plans.filter(plan => plan.active);
+      const options = plans.map(plan => `<option value="${esc(plan.id)}">${esc(plan.name)} · ${money(plan.price_minor, plan.currency)}</option>`).join('');
+      if (!plans.length) { toast('برای ساخت سفارش ابتدا یک طرح فعال بسازید.', true); return; }
+      openModal('ثبت سفارش جدید', `<div class="field"><label>شناسه کاربر</label><input name="user_id" required dir="ltr" placeholder="usr_..."></div><div class="field"><label>طرح</label><select name="plan_id" required>${options}</select></div><div class="grid-2"><div class="field"><label>تعداد دستگاه</label><input name="peer_count" type="number" min="1" max="100" value="1" required></div><div class="field"><label>کد کشور (اختیاری)</label><input name="country" minlength="2" maxlength="2" class="ltr-input" placeholder="DE"></div></div><div class="notice info">برای retry امن، یک شناسه یکتا به‌عنوان Idempotency-Key ارسال می‌شود. کاربر را ابتدا در بخش کاربران بسازید.</div>`, {
+        submit: 'ساخت سفارش', onSubmit: async values => {
+          const headers = { 'Idempotency-Key': crypto.randomUUID ? crypto.randomUUID() : `panel-${Date.now()}-${Math.random().toString(16).slice(2)}` };
+          const payload = { user_id: values.get('user_id').trim(), plan_id: values.get('plan_id'), peer_count: Number(values.get('peer_count')) };
+          if (values.get('country').trim()) payload.country = values.get('country').trim().toUpperCase();
+          const order = await api('/orders', { method: 'POST', headers, body: JSON.stringify(payload) });
+          return { message: `سفارش ${order.id} ساخته شد` };
+        },
+      });
+    }
+    function confirmPayment(order) {
+      openModal('ثبت تأیید پرداخت', `<div class="notice">با ثبت این فرم، اشتراک برای کاربر ایجاد می‌شود. فقط پس از تأیید قطعی پرداخت در پنل درگاه ادامه دهید.</div><div class="field"><label>نام درگاه</label><input name="provider" required maxlength="80" placeholder="gateway-name"></div><div class="field"><label>شناسه تراکنش تأییدشده</label><input name="provider_reference" required maxlength="200" dir="ltr"></div><div class="grid-2"><div class="field"><label>مبلغ (واحد خرد)</label><input name="amount_minor" type="number" min="0" required value="${esc(order.price_minor)}"></div><div class="field"><label>ارز</label><input name="currency" minlength="3" maxlength="3" required class="ltr-input" value="${esc(order.currency)}"></div></div><label class="check-row"><input type="checkbox" name="verified" required> پرداخت را مستقیماً در درگاه راستی‌آزمایی کرده‌ام.</label>`, {
+        submit: 'تأیید و ایجاد اشتراک', onSubmit: async values => {
+          await api(`/orders/${escapePath(order.id)}/confirm-payment`, { method: 'POST', body: JSON.stringify({ provider: values.get('provider').trim(), provider_reference: values.get('provider_reference').trim(), amount_minor: Number(values.get('amount_minor')), currency: values.get('currency').trim().toUpperCase() }) });
+          return { message: 'پرداخت ثبت شد؛ provisioning اشتراک در صف اجراست.' };
+        },
+      });
+    }
+
+    function renderSubscriptions() {
+      const rows = state.subscriptions.map(sub => {
+        const actions = [];
+        actions.push(actionButton('subscription-detail', sub.id, 'جزئیات'));
+        actions.push(actionButton('subscription-peers', sub.id, 'دستگاه‌ها'));
+        if (sub.status === 'active') actions.push(actionButton('suspend-sub', sub.id, 'تعلیق', true));
+        if (sub.status === 'suspended') actions.push(actionButton('resume-sub', sub.id, 'فعال‌سازی'));
+        if (['active', 'suspended'].includes(sub.status)) actions.push(actionButton('renew-sub', sub.id, 'تمدید'));
+        const ratio = sub.traffic_limit_bytes ? Math.min(100, sub.used_bytes / sub.traffic_limit_bytes * 100) : 0;
+        return `<tr><td><span class="table-primary mono">${esc(sub.id)}</span><span class="table-secondary">کاربر <span class="mono">${esc(sub.user_id)}</span></span></td><td>${status(sub.status)}</td><td><span>${bytes(sub.used_bytes)} / ${bytes(sub.traffic_limit_bytes)}</span><div class="progress-line" style="width:100px;margin-top:4px"><i style="width:${ratio}%;background:${ratio >= 90 ? '#c46060' : '#4a9c79'}"></i></div></td><td>${num(sub.peer_limit)} دستگاه</td><td>${sub.expires_at ? date(sub.expires_at) : '—'}</td><td>${money(sub.price_minor, sub.currency)}</td><td><div class="actions-cell">${actions.join('')}</div></td></tr>`;
+      });
+      $('#view').innerHTML = `${pageToolbar('اشتراک‌ها', 'اشتراک‌های اخیر، مصرف ترافیک، دستگاه‌ها و عملیات تمدید.', '<button class="outline-button" data-action="go-orders">رفتن به سفارش‌ها</button>')}${errorNotice('subscriptions', 'subscriptions:read')}<form id="subscription-filter" class="toolbar"><div class="filter-search"><span class="search-symbol">⌕</span><input name="q" placeholder="شناسه اشتراک یا کاربر"></div><div class="field narrow"><label>وضعیت</label><select name="status"><option value="">همه وضعیت‌ها</option>${['active', 'provisioning', 'suspended', 'expired', 'failed'].map(value => `<option value="${value}">${STATUS[value][0]}</option>`).join('')}</select></div><button class="outline-button">جست‌وجو</button><span class="table-secondary">${num(state.subscriptions.length)} مورد در این صفحه</span></form>${table(['اشتراک / کاربر', 'وضعیت', 'مصرف / سقف', 'دستگاه', 'انقضا', 'مبلغ', 'عملیات'], rows)}<div class="pagination"><span>${num(state.subscriptionsOffset + 1)} تا ${num(state.subscriptionsOffset + state.subscriptions.length)} مورد</span><div class="pagination-actions"><button class="outline-button" data-action="subs-prev" ${state.subscriptionsOffset <= 0 ? 'disabled' : ''}>قبلی</button><button class="outline-button" data-action="subs-next" ${!state.subscriptionsHasNext ? 'disabled' : ''}>بعدی</button></div></div>`;
+      const form = $('#subscription-filter');
+      form.addEventListener('submit', event => { event.preventDefault(); const values = new FormData(form); const q = String(values.get('q')).toLowerCase(); const s = String(values.get('status')); $$('#view tbody tr').forEach(row => row.classList.toggle('hidden', (!!q && !row.textContent.toLowerCase().includes(q)) || (!!s && !row.textContent.includes(STATUS[s][0])))); });
+    }
+
+    function renderNodes() {
+      const rows = state.nodes.map(node => {
+        const count = state.servers.filter(server => server.node_id === node.id).length;
+        return `<tr><td><span class="table-primary">${esc(node.name)}</span><span class="table-secondary mono">${esc(node.id)}</span></td><td>${esc(node.country)}</td><td>${status(!node.active ? 'disabled' : node.healthy ? 'online' : 'failed')}</td><td>${num(count)} Interface</td><td>${date(node.last_seen_at, true)}</td><td><div class="actions-cell">${actionButton('test-node', node.id, 'تست اتصال')}${actionButton('toggle-node', node.id, node.active ? 'غیرفعال‌سازی' : 'فعال‌سازی', !node.active, `data-active="${node.active}"`)}</div></td></tr>`;
+      });
+      $('#view').innerHTML = `${pageToolbar('Nodeها', 'Nodeها از اتصال خروجی HTTPS به پنل فرمان‌ها را دریافت می‌کنند.', '<button class="primary-button" data-action="new-node">＋ نصب Node جدید</button>')}${errorNotice('nodes', 'servers:read / servers:write')}<div class="notice info">کلید Node فقط یک‌بار پس از ساخت نمایش داده می‌شود. نصب‌کننده، WireGuard و سرویس systemd را روی VPS راه‌اندازی می‌کند.</div>${table(['Node', 'موقعیت', 'وضعیت', 'Interfaceها', 'آخرین heartbeat', 'عملیات'], rows)}`;
+    }
+    function renderInterfaces() {
+      const rows = state.servers.map(server => {
+        const node = state.nodes.find(item => item.id === server.node_id);
+        return `<tr><td><span class="table-primary">${esc(server.name)}</span><span class="table-secondary mono">${esc(server.interface_name)} · ${esc(server.id)}</span></td><td>${esc(node?.name || 'Local')}</td><td>${esc(server.country)}</td><td class="mono">${esc(server.endpoint)}</td><td class="mono">${esc(server.address_pool)}</td><td>${status(!server.active ? 'disabled' : server.healthy ? 'online' : 'failed')}</td><td>${actionButton('toggle-server', server.id, server.active ? 'غیرفعال‌سازی' : 'فعال‌سازی', !server.active, `data-active="${server.active}"`)}</td></tr>`;
+      });
+      $('#view').innerHTML = `${pageToolbar('Interfaceها', 'هر Interface endpoint، کلید عمومی و pool آدرس مستقل دارد.', '<button class="primary-button" data-action="new-server">＋ ثبت Interface</button>')}${errorNotice('servers', 'servers:read / servers:write')}<div class="notice">Interface را فقط زمانی غیرفعال کنید که مطمئنید اشتراک‌های موجود نباید دیگر به آن تخصیص یابند.</div>${table(['Interface', 'Node', 'کشور', 'Endpoint', 'Pool', 'سلامت', 'عملیات'], rows)}`;
+    }
+    function renderPeers() {
+      const rows = state.peers.map(peer => {
+        const busy = ['provisioning', 'recreating', 'revoking'].includes(peer.status);
+        const actions = [];
+        if (peer.status === 'active') actions.push(actionButton('peer-config', peer.id, 'کانفیگ'), actionButton('peer-qr', peer.id, 'QR'));
+        if (peer.subscription_status === 'active' && ['active', 'revoked'].includes(peer.status)) actions.push(actionButton('add-peer', peer.id, 'دستگاه +', false, `data-sub="${esc(peer.subscription_id)}" data-country="${esc(peer.country)}"`));
+        if (!busy && peer.status !== 'revoked') actions.push(actionButton('recreate-peer', peer.id, 'بازسازی'));
+        if (!['revoked', 'revoking'].includes(peer.status)) actions.push(actionButton('revoke-peer', peer.id, 'لغو', true));
+        return `<tr><td><span class="table-primary">${esc(peer.external_user_id || 'کاربر')}</span><span class="table-secondary mono">${esc(peer.id)} · ${esc(peer.user_id)}</span></td><td class="mono">${esc(peer.client_ip)}</td><td>${esc(peer.server_name)} · ${esc(peer.country)}</td><td>${status(peer.status)}</td><td><span dir="ltr">↓ ${bytes(peer.rx_bytes)} / ↑ ${bytes(peer.tx_bytes)}</span></td><td>${date(peer.created_at)}</td><td><div class="actions-cell">${actions.join('')}</div></td></tr>`;
+      });
+      const summary = state.peerSummary || {};
+      const countryOptions = [...new Set(state.servers.map(server => server.country).filter(Boolean))].sort().map(country => `<option value="${esc(country)}" ${state.peerFilters.country === country ? 'selected' : ''}>${esc(country)}</option>`).join('');
+      $('#view').innerHTML = `${pageToolbar('کلاینت‌ها و Peerها', 'دستگاه‌های کاربران، وضعیت provisioning و اطلاعات مصرف.', '')}<div class="stats-grid">${stat('Peer فعال', num(summary.active), 'فعال روی Node', '#19846b')}${stat('کل Peer', num(summary.total), 'همه وضعیت‌ها', '#4079a0')}${stat('مصرف ثبت‌شده', bytes(summary.used_bytes), 'مجموع دریافت و ارسال', '#bd6260')}</div>${errorNotice('peers', 'peers:read')}<form class="toolbar" id="peer-filter"><div class="filter-search"><span class="search-symbol">⌕</span><input name="q" value="${esc(state.peerFilters.q)}" placeholder="شناسه کاربر، IP، اشتراک یا Node"></div><div class="field narrow"><label>وضعیت</label><select name="status"><option value="">همه وضعیت‌ها</option>${['active', 'provisioning', 'recreating', 'revoking', 'revoked', 'failed'].map(value => `<option value="${value}" ${state.peerFilters.status === value ? 'selected' : ''}>${STATUS[value][0]}</option>`).join('')}</select></div><div class="field narrow"><label>موقعیت</label><select name="country"><option value="">همه</option>${countryOptions}</select></div><button class="primary-button">اعمال فیلتر</button></form>${table(['کاربر / Peer', 'IP کلاینت', 'موقعیت', 'وضعیت', 'دریافت / ارسال', 'ایجاد', 'عملیات'], rows)}<div class="pagination"><span>${num(state.peerTotal ? state.peerOffset + 1 : 0)} تا ${num(Math.min(state.peerOffset + state.peers.length, state.peerTotal))} از ${num(state.peerTotal)} مورد</span><div class="pagination-actions"><button class="outline-button" data-action="peer-prev" ${state.peerOffset <= 0 ? 'disabled' : ''}>قبلی</button><button class="outline-button" data-action="peer-next" ${state.peerOffset + 50 >= state.peerTotal ? 'disabled' : ''}>بعدی</button></div></div>`;
+    }
+
+    function renderWebhooks() {
+      const rows = state.webhooks.map(hook => `<tr><td><span class="table-primary">${esc(hook.url)}</span><span class="table-secondary mono">${esc(hook.id)}</span></td><td>${(hook.events || []).map(event => `<span class="status info">${esc(event)}</span>`).join(' ')}</td><td>${status(hook.active ? 'active' : 'disabled')}</td><td><div class="actions-cell">${actionButton('webhook-deliveries', hook.id, 'تحویل‌ها')}${hook.active ? actionButton('delete-webhook', hook.id, 'غیرفعال', true) : ''}</div></td></tr>`);
+      $('#view').innerHTML = `${pageToolbar('Webhookها', 'رویدادهای سفارش، اشتراک و Peer را به Backend خود ارسال کنید.', '<button class="primary-button" data-action="new-webhook">＋ افزودن Webhook</button>')}${errorNotice('webhooks', 'webhooks:read / webhooks:write')}<div class="notice info">Secret امضای Webhook فقط هنگام ساخت نمایش داده می‌شود. آن را در Backend نگه دارید و امضای درخواست‌ها را پیش از پردازش بررسی کنید.</div>${table(['آدرس مقصد', 'رویدادها', 'وضعیت', 'عملیات'], rows)}`;
+    }
+    function renderKeys() {
+      const rows = state.issuedKeys.map(item => `<tr><td><span class="table-primary">${esc(item.name)}</span><span class="table-secondary mono">${esc(item.id)}</span></td><td>${item.scopes.map(scope => `<span class="status info">${esc(scope)}</span>`).join(' ')}</td><td>${date(item.created_at, true)}</td><td>${actionButton('revoke-key', item.id, 'لغو کلید', true)}</td></tr>`);
+      $('#view').innerHTML = `${pageToolbar('کلیدهای API', 'برای هر Backend کلید مستقل با کمترین دسترسی لازم صادر کنید.', '<button class="primary-button" data-action="new-key">＋ صدور کلید</button>')}${errorNotice('keys', 'keys:write')}<div class="notice">کلید خام فقط یک‌بار نمایش داده می‌شود. آن را به مرورگر یا اپ موبایل ندهید؛ API key باید فقط در Backend امن نگه‌داری شود. این جدول کلیدهایی را نشان می‌دهد که همین session ساخته است؛ API فهرست کلیدها را ارائه نمی‌کند.</div>${table(['کلید صادرشده در این session', 'Scopeها', 'ساخته‌شده', 'عملیات'], rows)}`;
+    }
+    function renderAudit() {
+      const rows = state.audit.map(item => `<tr><td>${date(item.created_at, true)}</td><td class="mono">${esc(item.actor)}</td><td>${esc(item.action)}</td><td class="mono">${esc(item.resource_id || '—')}</td></tr>`);
+      $('#view').innerHTML = `${pageToolbar('گزارش رویدادها', '۱۰۰ تغییر اخیر ثبت‌شده در Tenant فعلی.', '<button class="outline-button" data-action="reload-audit">↻ بارگذاری مجدد</button>')}${errorNotice('audit', 'audit:read')}${table(['زمان', 'عامل', 'رویداد', 'شناسه منبع'], rows)}`;
+    }
+
+    async function loadPeers() {
+      const params = new URLSearchParams({ offset: String(state.peerOffset), limit: '50', ...state.peerFilters });
+      const result = await api(`/peers?${params}`);
+      state.peers = result.items || []; state.peerTotal = result.total || 0; state.peerSummary = result.summary || state.peerSummary; delete state.errors.peers;
+      renderView();
+    }
+    async function loadOrders(offset = state.ordersOffset) {
+      state.ordersOffset = Math.max(0, offset);
+      try {
+        const result = await api(`/orders?offset=${state.ordersOffset}&limit=100`);
+        state.orders = result || []; state.ordersHasNext = state.orders.length === 100; delete state.errors.orders;
+      } catch (error) { state.errors.orders = error; }
+      renderView();
+    }
+    async function loadSubscriptions(offset = state.subscriptionsOffset) {
+      state.subscriptionsOffset = Math.max(0, offset);
+      try {
+        const result = await api(`/subscriptions?offset=${state.subscriptionsOffset}&limit=100`);
+        state.subscriptions = result || []; state.subscriptionsHasNext = state.subscriptions.length === 100; delete state.errors.subscriptions;
+      } catch (error) { state.errors.subscriptions = error; }
+      renderView();
+    }
+    async function loadAudit() { await loadResource('audit', '/audit-logs?offset=0&limit=100', []); renderView(); }
+    async function go(view) {
+      state.view = view; renderView();
+      if (!apiKey()) return;
+      if (view === 'peers') { try { await loadPeers(); } catch (error) { state.errors.peers = error; renderView(); } }
+      if (view === 'orders') await loadOrders(state.ordersOffset);
+      if (view === 'subscriptions') await loadSubscriptions(state.subscriptionsOffset);
+      if (view === 'audit') await loadAudit();
+    }
+    function nodeSetup() {
+      openModal('ثبت Node جدید', `<div class="grid-2"><div class="field"><label>نام نمایشی</label><input name="name" required maxlength="120" placeholder="Germany-1"></div><div class="field"><label>کد کشور</label><input name="country" required minlength="2" maxlength="2" class="ltr-input" placeholder="DE"></div></div><div class="notice info">شناسه و SERVER_API_KEY پس از ثبت فقط یک‌بار نمایش داده می‌شود. فرمان نصب آماده را روی VPS اجرا کنید.</div>`, {
+        submit: 'ساخت اطلاعات نصب', onSubmit: async values => {
+          const result = await api('/nodes/setup', { method: 'POST', body: JSON.stringify({ name: values.get('name').trim(), country: values.get('country').trim().toUpperCase() }) });
+          closeModal(); showNodeSetupResult(result); await refreshAll(); return { keepOpen: true };
+        },
+      });
+    }
+    function showNodeSetupResult(result) {
+      const command = `curl -fsSL ${location.origin}/install/node.sh -o /tmp/wg-node-install.sh && if [ "$(id -u)" -eq 0 ]; then bash /tmp/wg-node-install.sh; else sudo bash /tmp/wg-node-install.sh; fi`;
+      openModal('Node آماده نصب است', `<div class="notice">این کلید مخصوص همین Node است و فقط یک‌بار نمایش داده می‌شود. آن را امن نگه‌دارید.</div><div class="field"><label>NODE_ID</label><input dir="ltr" readonly value="${esc(result.node_id)}"></div><div class="field"><label>SERVER_API_KEY</label><input dir="ltr" readonly value="${esc(result.node_api_key)}"></div><div class="field"><label>فرمان نصب روی VPS</label><textarea dir="ltr" readonly>${esc(command)}</textarea></div><p class="field-help">فرمان را در ترمینال root نود اجرا کنید؛ URL پنل، آدرس عمومی و پورت WireGuard را وارد کنید. ورودی سرور فقط به UDP پورت WireGuard نیاز دارد.</p>`, { hideSubmit: true });
+      const foot = document.createElement('div'); foot.className = 'dialog-foot'; foot.innerHTML = '<button class="outline-button" data-copy-node="id">کپی NODE_ID</button><button class="outline-button" data-copy-node="key">کپی API Key</button><button class="primary-button" data-copy-node="command">کپی فرمان نصب</button><button class="outline-button" data-close>بستن</button>';
+      $('.dialog', $('#modal-root')).append(foot);
+      foot.querySelector('[data-copy-node="id"]').onclick = () => copyText(result.node_id, 'NODE_ID کپی شد');
+      foot.querySelector('[data-copy-node="key"]').onclick = () => copyText(result.node_api_key, 'کلید Node کپی شد');
+      foot.querySelector('[data-copy-node="command"]').onclick = () => copyText(command, 'فرمان نصب کپی شد');
+      foot.querySelector('[data-close]').onclick = closeModal;
+    }
+    function serverForm() {
+      const usableNodes = state.nodes.filter(node => node.active);
+      if (!usableNodes.length) { toast('ابتدا یک Node فعال بسازید.', true); return; }
+      const options = usableNodes.map(node => `<option value="${esc(node.id)}">${esc(node.name)} · ${esc(node.country)}</option>`).join('');
+      openModal('ثبت Interface روی Node', `<div class="grid-2"><div class="field"><label>Node</label><select name="node_id">${options}</select></div><div class="field"><label>نام نمایشی</label><input name="name" required maxlength="120" placeholder="Germany 1"></div><div class="field"><label>نام Interface لینوکس</label><input name="interface_name" required maxlength="15" pattern="[a-zA-Z0-9_=+.@-]{1,15}" value="wg0" dir="ltr"></div><div class="field"><label>کد کشور</label><input name="country" required minlength="2" maxlength="2" class="ltr-input" value="${esc(usableNodes[0].country)}"></div><div class="field"><label>Endpoint کاربران</label><input name="endpoint" required maxlength="255" class="ltr-input" placeholder="vpn.example.com:51820"></div><div class="field"><label>کلید عمومی WireGuard</label><input name="public_key" required minlength="10" maxlength="64" class="ltr-input"></div><div class="field"><label>Pool IPv4</label><input name="address_pool" required class="ltr-input" placeholder="10.44.0.0/24"></div><div class="field"><label>DNS کاربران</label><input name="dns" value="1.1.1.1" class="ltr-input"></div></div><div class="notice info">نود پس از نصب و ثبت‌نام، Interface را خودکار معرفی می‌کند. مقادیر این فرم باید با تنظیم واقعی WireGuard روی VPS یکسان باشند.</div>`, {
+        submit: 'ثبت Interface', onSubmit: async values => {
+          const payload = Object.fromEntries(['name', 'country', 'endpoint', 'public_key', 'address_pool', 'dns', 'node_id', 'interface_name'].map(key => [key, values.get(key).trim()]));
+          payload.country = payload.country.toUpperCase(); payload.agent_url = ''; payload.agent_secret = '';
+          await api('/servers', { method: 'POST', body: JSON.stringify(payload) });
+          return { message: 'Interface ثبت شد' };
+        },
+      });
+    }
+    function issueKeyForm() {
+      const storeDefaults = new Set(['plans:read', 'users:write', 'orders:create', 'orders:read', 'payments:confirm', 'subscriptions:read', 'peers:read']);
+      const fields = `<div class="field"><label>نام کلید / سرویس متصل</label><input name="name" required maxlength="120" placeholder="shop-backend"></div><div class="field"><label>دسترسی‌ها</label><div class="checkbox-list">${SCOPES.map(([scope, label]) => `<label class="check-row"><input type="checkbox" name="scopes" value="${scope}" ${storeDefaults.has(scope) ? 'checked' : ''}><span><span class="mono">${scope}</span><br><span class="field-help">${label}</span></span></label>`).join('')}</div></div><div class="notice">برای Backend فروش، فقط scopeهای موردنیاز را انتخاب کنید. کلیدهای این Tenant به همان داده‌های Tenant دسترسی خواهند داشت.</div>`;
+      openModal('صدور کلید API', fields, {
+        submit: 'صدور کلید', onSubmit: async values => {
+          const scopes = values.getAll('scopes');
+          if (!scopes.length) throw new Error('حداقل یک scope انتخاب کنید.');
+          const created = await api('/api-keys', { method: 'POST', body: JSON.stringify({ name: values.get('name').trim(), scopes }) });
+          state.issuedKeys.unshift({ id: created.id, name: created.name, scopes: created.scopes, created_at: new Date().toISOString() });
+          saveIssuedKeys(); closeModal(); showSecret(created.secret, created.name); await refreshAll(); return { keepOpen: true };
+        },
+      });
+    }
+    function showSecret(secret, name) {
+      openModal('کلید صادر شد', `<div class="notice">این مقدار فقط همین‌بار نمایش داده می‌شود. پیش از بستن پنجره آن را در secret manager امن ذخیره کنید.</div><div class="secret-output"><strong>${esc(name)}</strong><code>${esc(secret)}</code></div><div class="field-help" style="margin-top:10px">کلید را در JavaScript مرورگر، اپ موبایل یا مخزن Git قرار ندهید.</div>`, { hideSubmit: true });
+      const foot = document.createElement('div'); foot.className = 'dialog-foot'; foot.innerHTML = '<button class="primary-button" data-copy-secret>کپی کلید</button><button class="outline-button" data-close>بستن</button>';
+      $('.dialog', $('#modal-root')).append(foot);
+      foot.querySelector('[data-copy-secret]').onclick = () => copyText(secret, 'کلید کپی شد'); foot.querySelector('[data-close]').onclick = closeModal;
+    }
+    function webhookForm() {
+      openModal('افزودن Webhook', `<div class="field"><label>آدرس HTTPS مقصد</label><input name="url" type="url" required placeholder="https://shop.example.com/hooks/wireguard" dir="ltr"></div><div class="field"><label>رویدادها</label><div class="checkbox-list">${EVENTS.map(event => `<label class="check-row"><input type="checkbox" name="events" value="${event}" ${['payment.confirmed', 'subscription.active', 'subscription.failed'].includes(event) ? 'checked' : ''}><span class="mono">${event}</span></label>`).join('')}</div></div>`, {
+        submit: 'ثبت Webhook', onSubmit: async values => {
+          const events = values.getAll('events'); if (!events.length) throw new Error('حداقل یک رویداد انتخاب کنید.');
+          const hook = await api('/webhooks', { method: 'POST', body: JSON.stringify({ url: values.get('url').trim(), events }) });
+          closeModal(); openModal('Webhook ساخته شد', `<div class="notice">Secret امضا فقط یک‌بار نمایش داده می‌شود. آن را در Backend مقصد ذخیره کنید.</div><div class="field"><label>آدرس</label><input dir="ltr" readonly value="${esc(hook.url)}"></div><div class="secret-output"><strong>Signing secret</strong><code>${esc(hook.secret)}</code></div>`, { hideSubmit: true });
+          const foot = document.createElement('div'); foot.className = 'dialog-foot'; foot.innerHTML = '<button class="primary-button" data-copy-hook>کپی Secret</button><button class="outline-button" data-close>بستن</button>';
+          $('.dialog', $('#modal-root')).append(foot); foot.querySelector('[data-copy-hook]').onclick = () => copyText(hook.secret, 'Secret کپی شد'); foot.querySelector('[data-close]').onclick = closeModal;
+          await refreshAll(); return { keepOpen: true };
+        },
+      });
+    }
+
+    async function inspectUser(userId) {
+      const user = await api(`/users/${escapePath(userId)}`); state.userLookup = user; state.userQuery = user.external_id || ''; await go('users');
+    }
+    async function handleAction(button) {
+      const action = button.dataset.action, id = button.dataset.id;
+      if (action === 'new-plan') return planForm();
+      if (action === 'edit-plan') return planForm(state.plans.find(plan => plan.id === id));
+      if (action === 'disable-plan') {
+        if (!confirm('این طرح از فهرست فروش خارج شود؟ اشتراک‌های موجود تغییر نمی‌کنند.')) return;
+        await api(`/plans/${escapePath(id)}`, { method: 'DELETE' }); toast('طرح غیرفعال شد'); return refreshAll();
+      }
+      if (action === 'new-user') return openModal('ساخت کاربر', '<div class="field"><label>شناسه خارجی پایدار</label><input name="external_id" required maxlength="200" dir="ltr" placeholder="customer-1042"></div><div class="field-help">در صورت وجود این شناسه در Tenant، همان کاربر بازگردانده می‌شود.</div>', { submit: 'ساخت کاربر', onSubmit: async values => { const user = await api('/users', { method: 'POST', body: JSON.stringify({ external_id: values.get('external_id').trim() }) }); state.userLookup = user; return { message: `کاربر ساخته شد: ${user.id}` }; } });
+      if (action === 'new-order') return orderForm();
+      if (action === 'confirm-payment') return confirmPayment(state.orders.find(order => order.id === id));
+      if (action === 'orders-prev') return loadOrders(state.ordersOffset - 100);
+      if (action === 'orders-next') return loadOrders(state.ordersOffset + 100);
+      if (action === 'subs-prev') return loadSubscriptions(state.subscriptionsOffset - 100);
+      if (action === 'subs-next') return loadSubscriptions(state.subscriptionsOffset + 100);
+      if (action === 'open-order') {
+        const order = await api(`/orders/${escapePath(id)}`);
+        return openModal('جزئیات سفارش', `<div class="grid-2"><div class="field"><label>شناسه سفارش</label><input readonly dir="ltr" value="${esc(order.id)}"></div><div class="field"><label>نوع / وضعیت</label><p>${status(order.kind)} ${status(order.status)}</p></div><div class="field"><label>شناسه کاربر</label><input readonly dir="ltr" value="${esc(order.user_id)}"></div><div class="field"><label>شناسه طرح</label><input readonly dir="ltr" value="${esc(order.plan_id)}"></div><div class="field"><label>مبلغ</label><p>${money(order.price_minor, order.currency)}</p></div><div class="field"><label>تاریخ ثبت</label><p>${date(order.created_at, true)}</p></div></div>`, { hideSubmit: true });
+      }
+      if (action === 'subscription-detail') {
+        const sub = await api(`/subscriptions/${escapePath(id)}`);
+        return openModal('جزئیات اشتراک', `<div class="grid-2"><div class="field"><label>شناسه اشتراک</label><input dir="ltr" readonly value="${esc(sub.id)}"></div><div class="field"><label>وضعیت</label><p>${status(sub.status)}</p></div><div class="field"><label>کاربر</label><input dir="ltr" readonly value="${esc(sub.user_id)}"></div><div class="field"><label>طرح</label><input dir="ltr" readonly value="${esc(sub.plan_id)}"></div><div class="field"><label>مصرف</label><p>${bytes(sub.used_bytes)} از ${bytes(sub.traffic_limit_bytes)}</p></div><div class="field"><label>انقضا</label><p>${date(sub.expires_at, true)}</p></div></div>`, { hideSubmit: true });
+      }
+      if (action === 'subscription-peers') { state.peerFilters = { q: id, status: '', country: '' }; state.peerOffset = 0; return go('peers'); }
+      if (action === 'suspend-sub') {
+        if (!confirm('اشتراک تعلیق شود؟ دستگاه‌های فعال لغو خواهند شد.')) return;
+        await api(`/subscriptions/${escapePath(id)}/suspend`, { method: 'POST' }); toast('اشتراک برای تعلیق ثبت شد'); return refreshAll();
+      }
+      if (action === 'resume-sub') {
+        await api(`/subscriptions/${escapePath(id)}/resume`, { method: 'POST' }); toast('درخواست فعال‌سازی ثبت شد'); return refreshAll();
+      }
+      if (action === 'renew-sub') {
+        const order = await api(`/subscriptions/${escapePath(id)}/renew`, { method: 'POST', headers: { 'Idempotency-Key': crypto.randomUUID ? crypto.randomUUID() : `renew-${Date.now()}` } });
+        toast(`سفارش تمدید ${order.id} ساخته شد`); return refreshAll();
+      }
+      if (action === 'new-node') return nodeSetup();
+      if (action === 'test-node') {
+        button.disabled = true; button.textContent = 'در حال تست…';
+        const result = await api(`/nodes/${escapePath(id)}/test-connection`, { method: 'POST' });
+        toast(result.healthy ? 'ارتباط Node موفق بود' : 'Node پاسخ‌گو نیست', !result.healthy); return refreshAll();
+      }
+      if (action === 'toggle-node' || action === 'toggle-server') {
+        const active = button.dataset.active !== 'true';
+        const noun = action === 'toggle-node' ? 'Node' : 'Interface';
+        if (!active && !confirm(`${noun} غیرفعال شود؟ این کار تخصیص جدید را متوقف می‌کند.`)) return;
+        const endpoint = action === 'toggle-node' ? `/nodes/${escapePath(id)}` : `/servers/${escapePath(id)}`;
+        await api(endpoint, { method: 'PATCH', body: JSON.stringify({ active }) }); toast(`${noun} ${active ? 'فعال' : 'غیرفعال'} شد`); return refreshAll();
+      }
+      if (action === 'new-server') return serverForm();
+      if (action === 'peer-config') {
+        const blob = await binary(`/peers/${escapePath(id)}/config`), url = URL.createObjectURL(blob), link = document.createElement('a');
+        link.href = url; link.download = `${id}.conf`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1200); return;
+      }
+      if (action === 'peer-qr') {
+        const blob = await binary(`/peers/${escapePath(id)}/qr`), url = URL.createObjectURL(blob);
+        openModal('QR اتصال WireGuard', `<div class="notice">QR حاوی کلید خصوصی اتصال است؛ آن را فقط به مالک همین دستگاه نشان دهید.</div><img class="qr-image" src="${url}" alt="QR اتصال WireGuard">`, { hideSubmit: true });
+        $('#modal-root').querySelector('[data-close]').addEventListener('click', () => URL.revokeObjectURL(url));
+        $('#modal-root').querySelector('[data-overlay]').addEventListener('click', event => { if (event.target === event.currentTarget) URL.revokeObjectURL(url); }); return;
+      }
+      if (action === 'add-peer') {
+        const country = button.dataset.country || '';
+        if (!confirm(`یک دستگاه جدید برای این اشتراک در موقعیت ${country} ساخته شود؟`)) return;
+        await api(`/subscriptions/${escapePath(button.dataset.sub)}/peers`, { method: 'POST', body: JSON.stringify({ country }) }); toast('درخواست ساخت دستگاه ثبت شد'); return loadPeers();
+      }
+      if (action === 'revoke-peer') {
+        if (!confirm('این اتصال لغو شود؟ پس از اجرای فرمان روی Node دیگر قابل استفاده نخواهد بود.')) return;
+        await api(`/peers/${escapePath(id)}/revoke`, { method: 'POST' }); toast('درخواست لغو ثبت شد'); return loadPeers();
+      }
+      if (action === 'recreate-peer') {
+        if (!confirm('کلید و فایل اتصال بازسازی شود؟ فایل قبلی دیگر کار نخواهد کرد.')) return;
+        await api(`/peers/${escapePath(id)}/recreate`, { method: 'POST' }); toast('درخواست بازسازی ثبت شد'); return loadPeers();
+      }
+      if (action === 'peer-prev') { state.peerOffset = Math.max(0, state.peerOffset - 50); return loadPeers(); }
+      if (action === 'peer-next') { state.peerOffset += 50; return loadPeers(); }
+      if (action === 'new-webhook') return webhookForm();
+      if (action === 'delete-webhook') {
+        if (!confirm('Webhook غیرفعال شود؟')) return;
+        await api(`/webhooks/${escapePath(id)}`, { method: 'DELETE' }); toast('Webhook غیرفعال شد'); return refreshAll();
+      }
+      if (action === 'webhook-deliveries') {
+        const rows = await api(`/webhooks/${escapePath(id)}/deliveries?offset=0&limit=50`);
+        return openModal('تحویل‌های Webhook', table(['رویداد', 'وضعیت', 'تلاش', 'شناسه'], rows.map(row => `<tr><td>${esc(row.event)}</td><td>${status(row.status)}</td><td>${num(row.attempts)}</td><td class="mono">${esc(row.id)}</td></tr>`)), { wide: true, hideSubmit: true });
+      }
+      if (action === 'new-key') return issueKeyForm();
+      if (action === 'revoke-key') {
+        if (!confirm('این کلید API لغو شود؟ درخواست‌های جدید با آن رد خواهند شد.')) return;
+        await api(`/api-keys/${escapePath(id)}`, { method: 'DELETE' });
+        state.issuedKeys = state.issuedKeys.filter(item => item.id !== id); saveIssuedKeys(); toast('کلید API لغو شد'); return renderView();
+      }
+      if (action === 'reload-audit') return loadAudit();
+      if (action === 'go-orders') return go('orders');
+      if (action === 'lookup-user') return inspectUser(id);
+      if (action === 'toggle-user') {
+        const next = button.dataset.status === 'active' ? 'disabled' : 'active';
+        if (next === 'disabled' && !confirm('دسترسی کاربر جدیداً غیرفعال شود؟')) return;
+        state.userLookup = await api(`/users/${escapePath(id)}`, { method: 'PATCH', body: JSON.stringify({ status: next }) });
+        toast('وضعیت کاربر تغییر کرد'); return renderView();
+      }
+    }
+
+    $('#view').addEventListener('click', async event => {
+      const goButton = event.target.closest('[data-go]');
+      if (goButton) return go(goButton.dataset.go);
+      const button = event.target.closest('[data-action]');
+      if (!button || button.disabled) return;
+      button.disabled = true;
+      try { await handleAction(button); }
+      catch (error) { toast(`${error.message}${error.requestId ? ` · ${error.requestId}` : ''}`, true); }
+      finally { if (button.isConnected) button.disabled = false; }
     });
-    $('#peer-filters').onsubmit=event=>{event.preventDefault();peerOffset=0;loadPeers().catch(error=>toast(error.message,true))};
-    $('#peer-status').onchange=()=>{peerOffset=0;loadPeers().catch(error=>toast(error.message,true))};
-    $('#peer-country').onchange=()=>{peerOffset=0;loadPeers().catch(error=>toast(error.message,true))};
-    $('#peers-prev').onclick=()=>{peerOffset=Math.max(0,peerOffset-peerLimit);loadPeers().catch(error=>toast(error.message,true))};
-    $('#peers-next').onclick=()=>{peerOffset+=peerLimit;loadPeers().catch(error=>toast(error.message,true))};
-    $('#add-node').onclick=showNodeSetup; $('#add-interface').onclick=showInterfaceDialog; $('#refresh').onclick=load; $('#api-key-button').onclick=showKeyDialog; load();
+    $('#view').addEventListener('submit', async event => {
+      const form = event.target;
+      if (!form.matches('#create-user-form, #lookup-user-form, #user-filter, #peer-filter, #order-filter')) return;
+      event.preventDefault();
+      try {
+        const values = new FormData(form);
+        if (form.id === 'create-user-form') {
+          const user = await api('/users', { method: 'POST', body: JSON.stringify({ external_id: values.get('external_id').trim() }) });
+          state.userLookup = user; toast(`کاربر آماده است · ${user.id}`); return renderView();
+        }
+        if (form.id === 'lookup-user-form') {
+          state.userLookup = await api(`/users/${escapePath(values.get('user_id').trim())}`);
+          toast('پرونده کاربر دریافت شد'); return renderView();
+        }
+        if (form.id === 'user-filter') { state.userQuery = String(values.get('q') || ''); return renderView(); }
+        if (form.id === 'peer-filter') { state.peerFilters = { q: String(values.get('q') || '').trim(), status: String(values.get('status') || ''), country: String(values.get('country') || '') }; state.peerOffset = 0; return await loadPeers(); }
+        if (form.id === 'order-filter') {
+          const q = String(values.get('q') || '').toLowerCase(), statusValue = String(values.get('status') || '');
+          const rows = state.orders.filter(order => (!statusValue || order.status === statusValue) && (!q || `${order.id} ${order.user_id} ${order.plan_id}`.toLowerCase().includes(q)));
+          $$('#view tbody tr').forEach((row, index) => row.classList.toggle('hidden', !rows.includes(state.orders.find(order => order.id === row.querySelector('.mono')?.textContent))));
+          return;
+        }
+      } catch (error) { toast(error.message, true); }
+    });
+    $$('.nav-item').forEach(button => button.addEventListener('click', () => go(button.dataset.view)));
+    $('#refresh-button').addEventListener('click', refreshAll);
+    $('#api-key-button').addEventListener('click', () => {
+      openModal('تنظیم کلید API', `<div class="notice">کلید فقط در session همین مرورگر نگه‌داری می‌شود. پس از تغییر کلید، داده‌ها دوباره بارگذاری می‌شوند.</div><div class="field"><label>X-API-Key</label><input name="key" type="password" dir="ltr" autocomplete="off" required value="${esc(apiKey())}"></div>`, {
+        submit: 'اتصال و بارگذاری', onSubmit: async values => {
+          sessionStorage.setItem('wg_api_key', values.get('key').trim());
+          closeModal(); await refreshAll(); return { keepOpen: true };
+        },
+      });
+    });
+    $('#mobile-menu').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') closeModal(); });
+
+    async function boot() {
+      if (!apiKey()) return renderLogin();
+      await refreshAll();
+    }
+    boot();
   </script>
 </body>
 </html>

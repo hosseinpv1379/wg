@@ -313,6 +313,74 @@ traffic_limit_bytes در این نمونه ۱۰۰ گیگابایت است و ب�
 
 پنل فعلی storefront یا صفحه پرداخت نیست؛ این تجربه را باید در وب‌سایت، اپ یا ربات فروش خودتان بسازید.
 
+### ۱۳. اتصال Python با WGManager
+
+فایل `wg_manager.py` یک کلاینت Python همگام برای API است و می‌توانید آن را کنار Backend فروش خود قرار دهید. برای نصب وابستگی:
+
+~~~sh
+pip install httpx
+~~~
+
+در محیط اجرای Backend این مقادیر را به‌صورت secret تنظیم کنید؛ کلید را در کد، Git، مرورگر یا اپ موبایل قرار ندهید:
+
+~~~sh
+WG_API_URL=https://api.example.com
+WG_API_KEY=کلید-محدود-Backend
+~~~
+
+کلید فروش با حداقل scopeهای لازم را از سرور مرکزی بسازید:
+
+~~~sh
+docker compose exec api python -m app.cli issue-key main-service shop-backend --scopes plans:read users:write orders:create orders:read payments:confirm subscriptions:read peers:read
+~~~
+
+نمونه جریان خرید (بخش راستی‌آزمایی درگاه باید توسط Backend فروش شما انجام شود):
+
+~~~python
+import os
+import time
+
+from wg_manager import WGManager
+
+with WGManager(os.environ["WG_API_URL"], os.environ["WG_API_KEY"]) as wg:
+    plans = wg.list_plans()
+    user = wg.create_user("store-user-123")  # شناسه پایدار کاربر در فروشگاه شما
+    order = wg.create_order(
+        user["id"],
+        plans[0]["id"],
+        country="DE",
+        idempotency_key="store-order-987",
+    )
+
+    # ابتدا callback/تراکنش را با درگاه پرداخت خودتان قطعی راستی‌آزمایی کنید.
+    subscription = wg.confirm_payment(
+        order["id"],
+        provider="your-gateway",
+        provider_reference="verified-transaction-id",
+        amount_minor=order["price_minor"],
+        currency=order["currency"],
+    )
+
+    # Provisioning غیرهمگام است؛ تا active شدن اشتراک صبر کنید.
+    for _ in range(30):
+        subscription = wg.get_subscription(subscription["id"])
+        if subscription["status"] == "active":
+            break
+        if subscription["status"] in {"failed", "expired", "suspended"}:
+            raise RuntimeError(f"Provisioning failed: {subscription['status']}")
+        time.sleep(2)
+    else:
+        raise TimeoutError("Subscription is still provisioning")
+
+    peers = wg.list_peers(subscription["id"])
+    config = wg.download_peer_config(peers[0]["id"])
+    # کانفیگ شامل کلید خصوصی است؛ فقط از مسیر امن به خریدار تحویل دهید.
+~~~
+
+متدهای اصلی کلاس شامل فهرست طرح‌ها، ساخت/خواندن کاربر و سفارش، تأیید پرداخت، خواندن اشتراک و مصرف، مدیریت Peer، دریافت فایل `.conf`، QR به‌صورت `bytes` و آرشیو کانفیگ‌هاست. خطاها از نوع `WGManagerError` هستند و فیلدهای `status_code`، `code` و `request_id` دارند. استفاده از `idempotency_key` یکتا برای هر سفارش مانع سفارش تکراری در retryهای شبکه می‌شود.
+
+این API کلیدها را به Tenant وصل می‌کند، نه به فروشنده/کاربر جداگانه درون یک Tenant. بنابراین چند کلید صادرشده برای یک Tenant، داده‌های همان Tenant را با توجه به scopeهایشان می‌بینند. ساخت Tenant جداگانه، داده‌ها را جدا می‌کند، اما در نسخه فعلی Node و Server هم Tenant-scoped هستند و بین Tenantها زیرساخت مشترک ندارند. پس فعلاً این SDK را برای Backend خودتان یا فروشنده‌ای که Tenant و زیرساخت مستقل دارد به کار ببرید؛ برای واگذاری امن کلید به چند reseller روی Nodeهای مشترک، پشتیبانی partner isolation و اشتراک کنترل‌شده منابع باید اضافه شود.
+
 ## عملیات و عیب‌یابی
 
 روی سرور مرکزی:
