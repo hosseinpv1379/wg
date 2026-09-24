@@ -93,6 +93,56 @@ def panel():
                         media_type="text/html; charset=utf-8")
 
 
+@app.get("/install/node.sh", include_in_schema=False)
+def node_installer():
+    path = Path(__file__).resolve().parent.parent / "deploy" / "node" / "install.sh"
+    return FileResponse(path, media_type="text/x-shellscript; charset=utf-8",
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.post("/api/v1/node-installer-keys", response_model=ApiResponse[dict], status_code=201)
+def create_node_installer_key(request: Request, auth=Depends(require_scope("servers:write")),
+                              db: Session = Depends(get_db)):
+    tenant_id, actor = auth
+    secret = f"wg_node_{secrets.token_urlsafe(36)}"
+    credential = ApiCredential(tenant_id=tenant_id, name="node-installer",
+                               key_hash=hashlib.sha256(secret.encode()).hexdigest(),
+                               scopes="servers:read,servers:write", active=True)
+    db.add(credential)
+    db.flush()
+    audit(db, tenant_id, actor, "node_installer_key.created", credential.id)
+    db.commit()
+    return success({"id": credential.id, "api_key": secret}, request)
+
+
+@app.get("/api/v1/node-installer-keys", response_model=ApiResponse[list[dict]])
+def list_node_installer_keys(request: Request, auth=Depends(require_scope("servers:write")),
+                             db: Session = Depends(get_db)):
+    tenant_id = tenant_scope(auth)
+    rows = db.scalars(select(ApiCredential).where(ApiCredential.tenant_id == tenant_id,
+                                                    ApiCredential.name == "node-installer",
+                                                    ApiCredential.active.is_(True)).order_by(
+                                                        ApiCredential.created_at.desc())).all()
+    return success([{"id": row.id, "created_at": row.created_at} for row in rows], request)
+
+
+@app.delete("/api/v1/node-installer-keys/{key_id}", response_model=ApiResponse[dict])
+def revoke_node_installer_key(key_id: str, request: Request,
+                              auth=Depends(require_scope("servers:write")),
+                              db: Session = Depends(get_db)):
+    tenant_id, actor = auth
+    credential = db.scalar(select(ApiCredential).where(ApiCredential.id == key_id,
+                                                         ApiCredential.tenant_id == tenant_id,
+                                                         ApiCredential.name == "node-installer",
+                                                         ApiCredential.active.is_(True)))
+    if not credential:
+        raise HTTPException(404, detail={"code": "INSTALL_KEY_NOT_FOUND", "message": "Installer key not found"})
+    credential.active = False
+    audit(db, tenant_id, actor, "node_installer_key.revoked", credential.id)
+    db.commit()
+    return success({"id": credential.id, "active": False}, request)
+
+
 @app.get("/api/v1/plans", response_model=ApiResponse[list[PlanOut]])
 def list_plans(request: Request, auth=Depends(require_scope("plans:read")),
                db: Session = Depends(get_db)):

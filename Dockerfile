@@ -5,6 +5,7 @@ WORKDIR /srv/wireguard-service
 COPY pyproject.toml README.md ./
 COPY app ./app
 COPY migrations ./migrations
+COPY deploy/node/install.sh ./deploy/node/install.sh
 COPY alembic.ini ./
 RUN pip install --no-cache-dir .
 EXPOSE 8000
