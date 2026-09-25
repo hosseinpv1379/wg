@@ -108,6 +108,7 @@ class Server(Base):
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
     node_id: Mapped[str | None] = mapped_column(ForeignKey("nodes.id"), nullable=True, index=True)
     interface_name: Mapped[str] = mapped_column(String(15), default="wg0")
+    interface_generation: Mapped[str] = mapped_column(String(100), default="")
     name: Mapped[str] = mapped_column(String(120))
     country: Mapped[str] = mapped_column(String(2))
     endpoint: Mapped[str] = mapped_column(String(255))
@@ -187,6 +188,8 @@ class Peer(Base):
     status: Mapped[str] = mapped_column(String(24), default="provisioning")
     rx_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
     tx_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
+    last_rx_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
+    last_tx_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 

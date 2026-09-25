@@ -46,3 +46,17 @@ func TestParseTrafficDumpUsesWireGuardRXAndTXColumns(t *testing.T) {
 		t.Fatalf("unexpected traffic counters: %#v", result)
 	}
 }
+
+func TestParseInterfaceIndex(t *testing.T) {
+	line := "17: wg0: <POINTOPOINT,NOARP,UP> mtu 1420"
+	ifindex, err := parseInterfaceIndex(line)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ifindex != 17 {
+		t.Fatalf("parsed interface index = %d, err = %v; want 17", ifindex, err)
+	}
+	if _, err := parseInterfaceIndex("wg0: <UP>"); err == nil {
+		t.Fatal("expected an error for an interface identity without an index")
+	}
+}

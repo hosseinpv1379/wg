@@ -86,8 +86,13 @@ async def http_error_handler(request: Request, exc: StarletteHTTPException):
 
 @app.exception_handler(RequestValidationError)
 async def validation_error_handler(request: Request, exc: RequestValidationError):
+    first_error = exc.errors()[0] if exc.errors() else {}
+    field = ".".join(str(part) for part in first_error.get("loc", ()) if part not in {"body", "query"})
+    message = first_error.get("msg", "Request validation failed")
+    if field:
+        message = f"{field}: {message}"
     return JSONResponse(status_code=422, content={"success": False,
-        "error": {"code": "VALIDATION_ERROR", "message": "Request validation failed"},
+        "error": {"code": "VALIDATION_ERROR", "message": message},
         "request_id": getattr(request.state, "request_id", "unknown")})
 
 
@@ -118,9 +123,12 @@ def node_installer():
 
 @app.get("/api/v1/plans", response_model=ApiResponse[list[PlanOut]])
 def list_plans(request: Request, auth=Depends(require_scope("plans:read")),
-               db: Session = Depends(get_db)):
+               include_disabled: bool = False, db: Session = Depends(get_db)):
     tenant_id = tenant_scope(auth)
-    rows = db.scalars(select(Plan).where(Plan.tenant_id == tenant_id, Plan.active.is_(True))).all()
+    query = select(Plan).where(Plan.tenant_id == tenant_id)
+    if not include_disabled:
+        query = query.where(Plan.active.is_(True))
+    rows = db.scalars(query.order_by(Plan.name)).all()
     return success(rows, request)
 
 
@@ -167,6 +175,23 @@ def patch_plan(plan_id: str, data: PlanUpdate, request: Request,
 def post_user(data: UserCreate, request: Request, auth=Depends(require_scope("users:write")),
               db: Session = Depends(get_db)):
     return success(create_user(db, tenant_scope(auth), data), request)
+
+
+@app.get("/api/v1/users", response_model=ApiResponse[dict])
+def list_users(request: Request, q: str = "", status: str = "", offset: int = 0, limit: int = 50,
+               auth=Depends(require_scope("users:read")), db: Session = Depends(get_db)):
+    conditions = [User.tenant_id == tenant_scope(auth)]
+    query_text = q.strip()[:120]
+    if query_text:
+        conditions.append(or_(User.id.contains(query_text, autoescape=True),
+                              User.external_id.contains(query_text, autoescape=True)))
+    if status:
+        conditions.append(User.status == status)
+    total = db.scalar(select(func.count(User.id)).where(*conditions)) or 0
+    rows = db.scalars(select(User).where(*conditions).order_by(User.created_at.desc(), User.id)
+                      .offset(max(offset, 0)).limit(min(max(limit, 1), 100))).all()
+    return success({"items": [UserOut.model_validate(row).model_dump(mode="json") for row in rows],
+                    "total": total}, request)
 
 
 @app.get("/api/v1/users/{user_id}", response_model=ApiResponse[UserOut])
@@ -410,10 +435,21 @@ def get_order(order_id: str, request: Request, auth=Depends(require_scope("order
 
 
 @app.get("/api/v1/orders", response_model=ApiResponse[list[OrderOut]])
-def list_orders(request: Request, offset: int = 0, limit: int = 50,
+def list_orders(request: Request, offset: int = 0, limit: int = 50, q: str = "", status: str = "",
                 auth=Depends(require_scope("orders:read")), db: Session = Depends(get_db)):
-    rows = db.scalars(select(Order).where(Order.tenant_id == tenant_scope(auth))
-                      .order_by(Order.created_at.desc()).offset(max(offset, 0)).limit(min(limit, 100))).all()
+    query = select(Order).where(Order.tenant_id == tenant_scope(auth))
+    query_text = q.strip()[:120]
+    if query_text:
+        query = query.join(User, User.id == Order.user_id).where(
+            User.tenant_id == tenant_scope(auth),
+            or_(Order.id.contains(query_text, autoescape=True),
+                Order.user_id.contains(query_text, autoescape=True),
+                User.external_id.contains(query_text, autoescape=True),
+                Order.plan_id.contains(query_text, autoescape=True)))
+    if status:
+        query = query.where(Order.status == status)
+    rows = db.scalars(query.order_by(Order.created_at.desc(), Order.id)
+                      .offset(max(offset, 0)).limit(min(max(limit, 1), 100))).all()
     return success(rows, request)
 
 
@@ -425,10 +461,21 @@ def post_payment_confirmation(order_id: str, data: PaymentConfirm, request: Requ
 
 
 @app.get("/api/v1/subscriptions", response_model=ApiResponse[list[SubscriptionOut]])
-def list_subscriptions(request: Request, offset: int = 0, limit: int = 50,
+def list_subscriptions(request: Request, offset: int = 0, limit: int = 50, q: str = "", status: str = "",
                        auth=Depends(require_scope("subscriptions:read")), db: Session = Depends(get_db)):
-    rows = db.scalars(select(Subscription).where(Subscription.tenant_id == tenant_scope(auth))
-                      .order_by(Subscription.created_at.desc()).offset(max(offset, 0)).limit(min(limit, 100))).all()
+    query = select(Subscription).where(Subscription.tenant_id == tenant_scope(auth))
+    query_text = q.strip()[:120]
+    if query_text:
+        query = query.join(User, User.id == Subscription.user_id).where(
+            User.tenant_id == tenant_scope(auth),
+            or_(Subscription.id.contains(query_text, autoescape=True),
+                Subscription.user_id.contains(query_text, autoescape=True),
+                User.external_id.contains(query_text, autoescape=True),
+                Subscription.plan_id.contains(query_text, autoescape=True)))
+    if status:
+        query = query.where(Subscription.status == status)
+    rows = db.scalars(query.order_by(Subscription.created_at.desc(), Subscription.id)
+                      .offset(max(offset, 0)).limit(min(max(limit, 1), 100))).all()
     return success(rows, request)
 
 
@@ -697,8 +744,22 @@ def disable_webhook(webhook_id: str, request: Request,
     if not endpoint:
         raise HTTPException(404, detail={"code": "WEBHOOK_NOT_FOUND", "message": "Webhook not found"})
     endpoint.active = False
+    audit(db, endpoint.tenant_id, auth[1], "webhook.disabled", endpoint.id)
     db.commit()
     return success({"id": endpoint.id, "active": False}, request)
+
+
+@app.patch("/api/v1/webhooks/{webhook_id}", response_model=ApiResponse[dict])
+def patch_webhook(webhook_id: str, data: ActiveUpdate, request: Request,
+                  auth=Depends(require_scope("webhooks:write")), db: Session = Depends(get_db)):
+    endpoint = db.scalar(select(WebhookEndpoint).where(WebhookEndpoint.id == webhook_id,
+                                                         WebhookEndpoint.tenant_id == tenant_scope(auth)))
+    if not endpoint:
+        raise HTTPException(404, detail={"code": "WEBHOOK_NOT_FOUND", "message": "Webhook not found"})
+    endpoint.active = data.active
+    audit(db, endpoint.tenant_id, auth[1], "webhook.status_changed", endpoint.id)
+    db.commit()
+    return success({"id": endpoint.id, "active": endpoint.active}, request)
 
 
 @app.get("/api/v1/webhooks", response_model=ApiResponse[list[WebhookOut]])
@@ -739,6 +800,19 @@ def post_api_key(data: ApiKeyCreate, request: Request,
     db.commit()
     return success({"id": credential.id, "name": credential.name, "scopes": data.scopes,
                     "secret": secret}, request)
+
+
+@app.get("/api/v1/api-keys", response_model=ApiResponse[dict])
+def list_api_keys(request: Request, offset: int = 0, limit: int = 50,
+                  auth=Depends(require_scope("keys:write")), db: Session = Depends(get_db)):
+    tenant_id = tenant_scope(auth)
+    total = db.scalar(select(func.count(ApiCredential.id)).where(ApiCredential.tenant_id == tenant_id)) or 0
+    rows = db.scalars(select(ApiCredential).where(ApiCredential.tenant_id == tenant_id)
+                      .order_by(ApiCredential.created_at.desc(), ApiCredential.id)
+                      .offset(max(offset, 0)).limit(min(max(limit, 1), 100))).all()
+    return success({"items": [{"id": row.id, "name": row.name, "scopes": row.scopes.split(","),
+                                "active": row.active, "created_at": row.created_at} for row in rows],
+                    "total": total}, request)
 
 
 @app.delete("/api/v1/api-keys/{key_id}")

@@ -97,6 +97,22 @@ docker compose up -d --build api worker
 
 این کار UI پنل، migrationها و endpoint دانلود نصاب را به‌روز می‌کند. آدرس پروژه در این راهنما `/opt/wg-panel` فرض شده است.
 
+اگر پنل از قبل در مسیر دیگری نصب شده است، مخزن را دوباره clone نکنید. برای نصب فعلی شما در `/root/wg/wg-main`، پس از انتشار نسخه روی GitHub این ترتیب را روی سرور مرکزی اجرا کنید:
+
+~~~sh
+cd /root/wg/wg-main
+git status --short
+mkdir -p /root/wg-backups
+docker compose exec -T db pg_dump -U wg -d wg -Fc > "/root/wg-backups/wg-$(date +%Y%m%d-%H%M%S).dump"
+git pull --ff-only origin main
+docker compose up -d --build api worker
+docker compose ps
+docker compose exec api alembic current
+curl -fsS https://wg.bugde1-alphatm.best/health
+~~~
+
+اگر `git status --short` تغییر محلی نشان داد، قبل از pull آن‌ها را بررسی کنید؛ فایل `.env` و volume دیتابیس را حذف نکنید. `alembic current` باید migration `0004_persistent_peer_usage` را نشان دهد. سپس `/panel` را در مرورگر با کلید مدیریتی باز کنید و Nodeها، سفارش‌ها و مصرف Peerها را بررسی کنید. **اول پنل و migration را ارتقا دهید، بعد باینری Nodeها را.**
+
 ### ۵. نصب Caddy و فعال‌کردن HTTPS
 
 اگر Caddy نصب است به تنظیم Caddyfile بروید. در غیر این صورت مخزن رسمی Caddy را نصب کنید:
@@ -135,7 +151,7 @@ curl -fsS https://api.example.com/install/node.sh -o /dev/null
 
 ~~~sh
 docker compose exec api python -m app.cli create-tenant main-service "Main Service"
-docker compose exec api python -m app.cli issue-key main-service panel-admin --scopes servers:read servers:write peers:read peers:write
+docker compose exec api python -m app.cli issue-key main-service panel-admin --scopes $(docker compose exec -T api python -m app.cli scopes)
 docker compose exec api python -m app.cli issue-key main-service storefront --scopes plans:read plans:write users:read users:write orders:create orders:read payments:confirm subscriptions:read subscriptions:renew subscriptions:write peers:read peers:write webhooks:read webhooks:write
 ~~~
 
@@ -152,10 +168,10 @@ docker compose up -d --force-recreate api worker
 
 https://api.example.com/panel را باز کنید و کلید panel-admin را وارد کنید. پنل، Node و Interfaceها را مدیریت می‌کند و نمای کلی تعداد Peerها و مصرف را نشان می‌دهد. در بخش «کلاینت‌ها» می‌توانید Peerها را با شناسه کاربر، IP، شناسه اشتراک یا نام Node پیدا کنید؛ وضعیت و مصرف را ببینید، برای اشتراک فعال دستگاه بسازید، فایل اتصال یا QR محرمانه بگیرید، و Peer را بازسازی یا لغو کنید. تغییرات لغو و بازسازی به‌صورت job به Node فرستاده می‌شوند؛ وضعیت نهایی را پس از اتصال Node با «به‌روزرسانی» بررسی کنید.
 
-اگر سرور را پیش‌تر راه‌اندازی کرده‌اید و کلید فعلی فقط scopeهای `servers:read` و `servers:write` دارد، لازم نیست آن را دست‌کاری کنید. یک کلید جدید بسازید و آن را در پنل از «تنظیم کلید API» وارد کنید:
+اگر سرور را پیش‌تر راه‌اندازی کرده‌اید و کلید فعلی فقط scopeهای `servers:read` و `servers:write` دارد، بخش‌های فروش و کلیدهای API کار نمی‌کنند. کلید مدیریتی جدیدی با scopeهای کامل بسازید و آن را در پنل از «تنظیم کلید API» وارد کنید:
 
 ~~~sh
-docker compose exec api python -m app.cli issue-key main-service panel-admin-v2 --scopes servers:read servers:write peers:read peers:write
+docker compose exec api python -m app.cli issue-key main-service panel-admin-v2 --scopes $(docker compose exec -T api python -m app.cli scopes)
 ~~~
 
 کلید قبلی را تا زمانی که ورود با کلید جدید را آزمایش نکرده‌اید حذف نکنید. Endpoint فهرست Peerها tenant-scoped و صفحه‌بندی‌شده است و اطلاعات کلید خصوصی/config را در پاسخ JSON برنمی‌گرداند. دسترسی به فایل config و QR فقط از endpointهای محافظت‌شده با `peers:read` انجام می‌شود.
@@ -168,19 +184,9 @@ docker compose exec api python -m app.cli issue-key main-service panel-admin-v2 
 
 برای Node دامنه یا TCP ورودی لازم نیست. نصاب اگر UFW فعال باشد قانون UDP و مسیریابی را اضافه می‌کند؛ در پنل ارائه‌دهنده VPS هم UDP (پیش‌فرض 51820) را باز کنید و اتصال خروجی TCP 443 به پنل را مجاز بگذارید.
 
-### پیش‌نیاز اولین نصب: انتشار باینری Go
+### پیش‌نیاز اولین نصب: Release باینری Go
 
-این مرحله را یک‌بار از checkout توسعه، پس از push شدن کد پروژه به GitHub انجام دهید. Tag باید روی commitی باشد که شامل `wg-node/` و `.github/workflows/wg-node-release.yml` است:
-
-~~~sh
-git pull origin main
-git tag wg-node-v0.1.1
-git push origin wg-node-v0.1.1
-~~~
-
-اگر این tag قبلاً وجود دارد، شماره نسخه‌ی استفاده‌نشده‌ی بعدی را انتخاب کنید؛ یک tag منتشرشده را جابه‌جا یا دوباره استفاده نکنید.
-
-در GitHub Actions صبر کنید workflow سبز شود و در بخش Releases وجود `wg-node-linux-amd64`، `wg-node-linux-arm64` و `SHA256SUMS` را بررسی کنید. تا قبل از انتشار این Release، نصاب Node باینری لازم را پیدا نمی‌کند.
+نسخه‌ی `wg-node-v0.1.2` در [GitHub Releases](https://github.com/hosseinpv1379/wg/releases) باید شامل `wg-node-linux-amd64`، `wg-node-linux-arm64` و `SHA256SUMS` باشد. قبل از نصب Node، وجود هر سه فایل را بررسی کنید. برای هر نسخه جدید، روی commit منتشرشده tag تازه‌ی `wg-node-vX.Y.Z` ساخته می‌شود؛ GitHub Actions تست و build را اجرا و فایل‌ها را به Release اضافه می‌کند. هیچ‌وقت tag منتشرشده را جابه‌جا نکنید.
 
 اگر می‌خواهید باینری‌ها را دستی بسازید، [Go را نصب کنید](https://go.dev/doc/install)، سپس از ریشه مخزن:
 
@@ -206,6 +212,8 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags='-s -w' -o ../
 ~~~sh
 curl -fsSL https://api.example.com/install/node.sh -o /tmp/wg-node-install.sh && if [ "$(id -u)" -eq 0 ]; then bash /tmp/wg-node-install.sh; else sudo bash /tmp/wg-node-install.sh; fi
 ~~~
+
+نصاب به‌طور پیش‌فرض آخرین Release را می‌گیرد. برای نصب همین نسخه روی هر Node، بعد از دانلود فایل، آن را با `WG_NODE_VERSION=wg-node-v0.1.2 bash /tmp/wg-node-install.sh` به‌عنوان root اجرا کنید. پیش از اجرا، متن اسکریپت دریافتی از پنل خودتان را بررسی کنید.
 
 نصاب URL پنل، شناسه و کلید Node (ورودی مخفی)، IP عمومی یا DNS، پورت UDP و pool آدرس را می‌پرسد. سپس WireGuard و ابزارهای شبکه را نصب می‌کند، باینری Go متناسب CPU را از GitHub Release دانلود و SHA-256 آن را بررسی می‌کند، کلید سرور را می‌سازد، forwarding و NAT IPv4 را پیکربندی می‌کند و سرویس‌های systemd را فعال می‌کند. Node پس از اتصال، Interface را خودکار در پنل ثبت می‌کند. کلید در `/etc/wg-node/node.env` با permission 600 می‌ماند. ارتباط مدیریتی از HTTPS خروجی است.
 
@@ -237,6 +245,8 @@ systemctl restart wg-quick@wg0
 
 فایل تنظیم WireGuard در `/etc/wireguard/wg0.conf` و unit سرویس در `/etc/systemd/system/wg-node.service` است. کلید خصوصی سرور فقط در فایل root-only WireGuard ذخیره می‌شود. اگر `wg0.conf` یا `/etc/wg-node/node.env` از قبل باشد، نصب‌گر برای محافظت از تنظیمات قبلی متوقف می‌شود.
 
+آمار مصرف هر Peer به‌شکل تجمعی در دیتابیس پنل ذخیره می‌شود و با حذف یا ساخت دوباره‌ی interface صفر نمی‌شود. برای تشخیص دقیق reset شدن شمارنده‌های WireGuard، Node باید نسخه‌ای از daemon داشته باشد که `interface_generation` را گزارش کند. migration دیتابیس با اجرای API اعمال می‌شود. ترافیکی که بین آخرین نمونه‌برداری و حذف interface رخ داده باشد، از شمارنده‌های خود WireGuard قابل بازیابی نیست.
+
 نصاب این unit را برای daemon می‌سازد؛ `EnvironmentFile` کلید را از فایل root-only می‌خواند و systemd بعد از خرابی سرویس آن را دوباره اجرا می‌کند:
 
 ~~~ini
@@ -263,23 +273,32 @@ PrivateTmp=true
 WantedBy=multi-user.target
 ~~~
 
-### به‌روزرسانی Node
+### نصب و به‌روزرسانی دستی باینری Node
 
-برای انتشار daemon، tag مانند `wg-node-v1.0.0` بسازید و push کنید تا GitHub Actions باینری و checksum بسازد. سپس روی هر Node:
+اگر Node از قبل نصب شده و فقط daemon Go باید به نسخه `wg-node-v0.1.2` ارتقا یابد، روی هر VPS به‌عنوان root اجرا کنید. این روش فایل‌های WireGuard، کلید Node و state موجود را تغییر نمی‌دهد. باینری و checksum با نام اصلی دانلود می‌شوند تا بررسی SHA-256 درست انجام شود:
 
 ~~~sh
+set -euo pipefail
 case "$(dpkg --print-architecture)" in
   amd64) ASSET=wg-node-linux-amd64 ;;
   arm64) ASSET=wg-node-linux-arm64 ;;
   *) echo "Unsupported architecture"; exit 1 ;;
 esac
-BASE=https://github.com/hosseinpv1379/wg/releases/latest/download
-curl -fsSL "$BASE/$ASSET" -o /tmp/wg-node
-curl -fsSL "$BASE/SHA256SUMS" -o /tmp/SHA256SUMS
-(cd /tmp && grep "  $ASSET$" SHA256SUMS | sha256sum -c -)
-install -m 0755 /tmp/wg-node /usr/local/bin/wg-node
+VERSION=wg-node-v0.1.2
+BASE="https://github.com/hosseinpv1379/wg/releases/download/$VERSION"
+TMP_DIR=$(mktemp -d)
+curl -fsSL "$BASE/$ASSET" -o "$TMP_DIR/$ASSET"
+curl -fsSL "$BASE/SHA256SUMS" -o "$TMP_DIR/SHA256SUMS"
+(cd "$TMP_DIR" && grep "  $ASSET$" SHA256SUMS | sha256sum -c -)
+cp -p /usr/local/bin/wg-node /usr/local/bin/wg-node.previous
+install -m 0755 "$TMP_DIR/$ASSET" /usr/local/bin/wg-node.next
+mv -f /usr/local/bin/wg-node.next /usr/local/bin/wg-node
 systemctl restart wg-node
+systemctl --no-pager --full status wg-node
+rm -rf "$TMP_DIR"
 ~~~
+
+اگر سرویس بعد از ارتقا بالا نیامد، خروجی `journalctl -u wg-node -n 100 --no-pager` را بررسی کنید. برای بازگشت باینری قبلی، آن را به نام `wg-node.next` کپی کنید، با `mv -f` جایگزین کنید و `systemctl restart wg-node` را بزنید. قبل از ارتقای Nodeها، پنل مرکزی و migration دیتابیس را به‌روز کنید.
 
 ## بخش سوم: طرح و سفارش از API
 

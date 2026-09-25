@@ -66,9 +66,14 @@ case "$ARCH" in
   arm64) ASSET=wg-node-linux-arm64 ;;
   *) fail "Unsupported CPU architecture: $ARCH" ;;
 esac
-LATEST="https://github.com/$REPOSITORY/releases/latest/download"
-curl -fsSL "$LATEST/$ASSET" -o "$TMP_DIR/$ASSET"
-curl -fsSL "$LATEST/SHA256SUMS" -o "$TMP_DIR/SHA256SUMS"
+if [[ -n ${WG_NODE_VERSION:-} ]]; then
+  [[ $WG_NODE_VERSION =~ ^wg-node-v[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail 'WG_NODE_VERSION must look like wg-node-v0.1.2.'
+  RELEASE_BASE="https://github.com/$REPOSITORY/releases/download/$WG_NODE_VERSION"
+else
+  RELEASE_BASE="https://github.com/$REPOSITORY/releases/latest/download"
+fi
+curl -fsSL "$RELEASE_BASE/$ASSET" -o "$TMP_DIR/$ASSET"
+curl -fsSL "$RELEASE_BASE/SHA256SUMS" -o "$TMP_DIR/SHA256SUMS"
 (cd "$TMP_DIR" && grep "  $ASSET$" SHA256SUMS | sha256sum -c -)
 install -o root -g root -m 0755 "$TMP_DIR/$ASSET" "$BINARY"
 

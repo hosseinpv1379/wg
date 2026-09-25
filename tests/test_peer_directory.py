@@ -112,7 +112,8 @@ class PeerDirectoryTests(unittest.TestCase):
         self.assertIn('data-view="peers"', response.text)
         self.assertIn('data-view="subscriptions"', response.text)
         self.assertIn("recreate-peer", response.text)
-        self.assertIn("id=\"lookup-user-form\"", response.text)
+        self.assertIn("add-peer-for-sub", response.text)
+        self.assertIn("id=\"user-filter\"", response.text)
 
 
 if __name__ == "__main__":

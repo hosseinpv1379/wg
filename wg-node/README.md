@@ -38,7 +38,9 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags='-s -w' -o ../
 (cd ../dist && sha256sum wg-node-linux-amd64 wg-node-linux-arm64 > SHA256SUMS)
 ~~~
 
-با push تگی مانند `wg-node-v0.1.0`، GitHub Actions تست‌ها را اجرا می‌کند و این دو باینری و فایل checksum را در Release قرار می‌دهد. برای نصب خودکار Node، Release باید از قبل منتشر شده باشد.
+با push تگی مانند `wg-node-v0.1.2`، GitHub Actions تست‌ها را اجرا می‌کند و این دو باینری و فایل checksum را در Release قرار می‌دهد. برای نصب خودکار Node، Release باید از قبل منتشر شده باشد.
+
+برای نصب تازه، در پنل مرکزی Node بسازید و فرمان `/install/node.sh` را روی Ubuntu/Debian مقصد اجرا کنید. نصب‌گر باینری مناسب CPU را از Release دانلود و checksum را بررسی می‌کند. نسخه را می‌توان با `WG_NODE_VERSION=wg-node-v0.1.2` هنگام اجرای نصب‌گر ثابت کرد؛ بدون آن آخرین Release استفاده می‌شود. برای ارتقای Node نصب‌شده بدون تغییر کلید و WireGuard، دستورهای بخش «نصب و به‌روزرسانی دستی باینری Node» در [راهنمای اصلی](../README.md) را اجرا کنید.
 
 ## سرویس systemd
 

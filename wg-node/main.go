@@ -232,8 +232,42 @@ func (d *daemon) deletePeer(peerID string) (map[string]any, error) {
 }
 
 func (d *daemon) traffic(iface string) (map[string]any, error) {
-	output, err := wg("show", iface, "dump"); if err != nil { return nil, err }
-	return parseTrafficDump(output), nil
+	output, err := wg("show", iface, "dump")
+	if err != nil {
+		return nil, err
+	}
+	generation, err := interfaceGeneration(iface)
+	if err != nil {
+		return nil, err
+	}
+	result := parseTrafficDump(output)
+	result["interface_generation"] = generation
+	return result, nil
+}
+
+func interfaceGeneration(iface string) (string, error) {
+	output, err := exec.Command("ip", "-o", "link", "show", "dev", iface).Output()
+	if err != nil {
+		return "", fmt.Errorf("read WireGuard interface identity: %w", err)
+	}
+	line := strings.TrimSpace(string(output))
+	ifindex, err := parseInterfaceIndex(line)
+	if err != nil {
+		return "", fmt.Errorf("parse WireGuard interface index: %w", err)
+	}
+	bootID, err := os.ReadFile("/proc/sys/kernel/random/boot_id")
+	if err != nil {
+		return "", fmt.Errorf("read system boot ID: %w", err)
+	}
+	return strings.TrimSpace(string(bootID)) + ":" + strconv.Itoa(ifindex), nil
+}
+
+func parseInterfaceIndex(line string) (int, error) {
+	separator := strings.IndexByte(line, ':')
+	if separator <= 0 {
+		return 0, errors.New("invalid interface identity from iproute2")
+	}
+	return strconv.Atoi(strings.TrimSpace(line[:separator]))
 }
 
 func parseTrafficDump(output string) map[string]any {

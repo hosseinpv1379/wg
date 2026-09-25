@@ -395,6 +395,7 @@ def process_job(db: Session, job: Job) -> None:
             job.status = "done"
             db.commit()
             return
+        was_recreated = peer.status == "recreating"
         result = agent_request(db, server, "POST", "/internal/peers", {
             "peer_id": peer.id,
             "interface_name": server.interface_name,
@@ -402,11 +403,14 @@ def process_job(db: Session, job: Job) -> None:
             "endpoint": server.endpoint,
             "server_public_key": server.public_key, "dns": server.dns,
             "previous_public_key": peer.public_key,
-            "force_recreate": peer.status == "recreating",
+            "force_recreate": was_recreated,
         })
         peer.public_key = result["public_key"]
         peer.config_ciphertext = encrypt(result["config"])
         peer.status = "active"
+        if was_recreated:
+            peer.last_rx_bytes = 0
+            peer.last_tx_bytes = 0
         active_left = db.scalar(select(func.count(Peer.id)).where(
             Peer.subscription_id == sub.id,
             Peer.status.in_(["provisioning", "recreating", "revoking", "failed"]))) or 0
@@ -442,6 +446,11 @@ def poll_usage(db: Session) -> None:
                 continue
         try:
             result = agent_request(db, server, "GET", f"/internal/traffic?interface_name={server.interface_name}")
+            generation = str(result.get("interface_generation") or "")
+            generation_changed = bool(generation and server.interface_generation
+                                      and generation != server.interface_generation)
+            if generation:
+                server.interface_generation = generation
             server.healthy = True
             server.last_seen_at = utc_now()
             if server.node_id:
@@ -452,11 +461,16 @@ def poll_usage(db: Session) -> None:
             counters = {row["public_key"]: row for row in result.get("peers", [])}
             peers = db.scalars(select(Peer).where(Peer.server_id == server.id, Peer.status == "active")).all()
             for peer in peers:
+                if generation_changed:
+                    peer.last_rx_bytes = 0
+                    peer.last_tx_bytes = 0
                 counter = counters.get(peer.public_key)
                 if not counter:
                     node = db.get(Node, server.node_id) if server.node_id else None
                     if not server.active or (node is not None and not node.active):
                         continue
+                    peer.last_rx_bytes = 0
+                    peer.last_tx_bytes = 0
                     pending = db.scalar(select(Job.id).where(Job.kind == "provision_peer",
                         Job.resource_id == peer.id, Job.status.in_(["queued", "retry", "running"])))
                     if not pending:
@@ -467,8 +481,12 @@ def poll_usage(db: Session) -> None:
                             sub.status = "provisioning"
                     continue
                 rx, tx = int(counter["rx_bytes"]), int(counter["tx_bytes"])
-                delta = max(0, rx - peer.rx_bytes) + max(0, tx - peer.tx_bytes)
-                peer.rx_bytes, peer.tx_bytes = rx, tx
+                rx_delta = rx - peer.last_rx_bytes if rx >= peer.last_rx_bytes else rx
+                tx_delta = tx - peer.last_tx_bytes if tx >= peer.last_tx_bytes else tx
+                peer.rx_bytes += rx_delta
+                peer.tx_bytes += tx_delta
+                peer.last_rx_bytes, peer.last_tx_bytes = rx, tx
+                delta = rx_delta + tx_delta
                 sub = db.get(Subscription, peer.subscription_id)
                 if sub and delta:
                     sub.used_bytes += delta

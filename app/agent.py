@@ -137,7 +137,12 @@ def traffic(authorization: str | None = Header(default=None),
                 counters.append({"public_key": parts[0], "rx_bytes": int(parts[6]), "tx_bytes": int(parts[7])})
             except ValueError:
                 continue
-    return {"peers": counters}
+    try:
+        interface_index = (Path("/sys/class/net") / interface_name / "ifindex").read_text().strip()
+        boot_id = Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+    except OSError as exc:
+        raise HTTPException(502, "Could not read WireGuard interface identity") from exc
+    return {"peers": counters, "interface_generation": f"{boot_id}:{interface_index}"}
 
 
 @app.on_event("startup")

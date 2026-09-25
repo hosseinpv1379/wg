@@ -4,6 +4,7 @@ from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -26,7 +27,12 @@ def get_tenant(x_api_key: Annotated[str | None, Header()] = None,
         tenant_id = settings.bootstrap_tenant_id
         if not db.get(Tenant, tenant_id):
             db.add(Tenant(id=tenant_id, name="Bootstrap tenant"))
-            db.commit()
+            try:
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+                if not db.get(Tenant, tenant_id):
+                    raise
         return tenant_id, ALL_SCOPES, "bootstrap"
     raise HTTPException(401, detail={"code": "INVALID_API_KEY", "message": "API key is invalid"})
 
